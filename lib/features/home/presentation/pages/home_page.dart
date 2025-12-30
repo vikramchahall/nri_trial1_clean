@@ -6,6 +6,7 @@ import '../../../crowdfunding/presentation/components/crowd_post_tile.dart';
 import '../../../crowdfunding/presentation/cubits/crowd_cubit.dart';
 import '../../../crowdfunding/presentation/cubits/crowd_states.dart';
 import '../../../crowdfunding/presentation/pages/upload_crowd_page.dart';
+import '../../../profile/presentation/pages/profile_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,14 +30,25 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text("Village Feed"),
 
-        // ✅ LOGOUT FOR BOTH ADMIN & USER
         actions: [
+          // 👤 PROFILE (FOR BOTH)
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProfilePage(uid: user!.uid),
+              ),
+            ),
+          ),
+
+          // 🚪 LOGOUT (FOR BOTH)
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => context.read<AuthCubit>().logout(),
           ),
 
-          // ✅ "+" ONLY FOR ADMIN
+          // ➕ ONLY ADMIN
           if (user?.isAdmin ?? false)
             IconButton(
               icon: const Icon(Icons.add),

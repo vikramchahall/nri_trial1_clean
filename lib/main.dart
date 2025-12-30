@@ -16,6 +16,10 @@ import 'features/crowdfunding/presentation/cubits/crowd_cubit.dart';
 // 🔹 STORAGE
 import 'features/storage/data/supabase_storage_repo.dart';
 
+// 🔹 PROFILE ✅ NEW
+import 'features/profile/data/firebase_profile_repo.dart';
+import 'features/profile/presentation/cubits/profile_cubit.dart';
+
 // 🔹 HOME
 import 'features/home/presentation/pages/home_page.dart';
 
@@ -47,18 +51,24 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        // 🔹 AUTH CUBIT
+        // 🔹 AUTH
         BlocProvider(
           create: (context) =>
               AuthCubit(authRepo: FirebaseAuthRepo())..checkAuth(),
         ),
 
-        // 🔹 CROWD CUBIT
+        // 🔹 CROWDFUNDING
         BlocProvider(
           create: (context) => CrowdCubit(
             crowdRepo: FirebaseCrowdRepo(),
             storageRepo: SupabaseStorageRepo(),
           ),
+        ),
+
+        // 🔹 PROFILE ✅ NEW
+        BlocProvider(
+          create: (context) =>
+              ProfileCubit(profileRepo: FirebaseProfileRepo()),
         ),
       ],
       child: MaterialApp(
@@ -67,23 +77,18 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
           useMaterial3: true,
         ),
-
-        // 🔥 ROUTE DECISION BASED ON AUTH
         home: BlocBuilder<AuthCubit, AuthState>(
           builder: (context, state) {
-            // ✅ Logged in
             if (state is Authenticated) {
               return const HomePage();
             }
 
-            // ⏳ Loading
             if (state is AuthLoading) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
             }
 
-            // ❌ Not logged in
             return const AuthPage();
           },
         ),

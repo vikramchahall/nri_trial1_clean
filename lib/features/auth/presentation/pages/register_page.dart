@@ -17,6 +17,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final emailController = TextEditingController();
   final pwController = TextEditingController();
   final confirmPwController = TextEditingController();
+  final nameController = TextEditingController();
+
 
   void register() {
     final email = emailController.text;
@@ -43,6 +45,13 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 25),
               const Text("C R E A T E  A C C O U N T", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 25),
+              MyTextField(
+  controller: nameController,
+  hintText: "Your Name",
+  obscureText: false,
+),
+const SizedBox(height: 10),
+
               MyTextField(controller: emailController, hintText: "Email", obscureText: false),
               const SizedBox(height: 10),
               MyTextField(controller: pwController, hintText: "Password", obscureText: true),
