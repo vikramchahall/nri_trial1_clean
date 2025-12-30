@@ -6,8 +6,8 @@ import '../../domain/entities/crowd_post.dart';
 import '../cubits/crowd_cubit.dart';
 import '../pages/crowd_history_page.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
-import 'dart:js' as js; // This allows Flutter to talk to Javascript
-import 'dart:html' as html; // This allows us to listen for the success message
+import 'package:nri_trial1_clean/services/payment_gateway.dart' as gateway;
+import 'package:flutter/foundation.dart'; // for kIsWeb
 
 class CrowdPostTile extends StatefulWidget {
   final CrowdPost crowdPost;
@@ -32,13 +32,6 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
       _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
       _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
 
-    } else {
-      // WEB ONLY: Listen for the "PAYMENT_SUCCESS" message from the index.html script
-      html.window.onMessage.listen((event) {
-        if (event.data == "PAYMENT_SUCCESS") {
-           _handlePaymentSuccess(PaymentSuccessResponse("web_id", "web_order", "web_sig", {}));
-        }
-      });
     }
   }
 
@@ -67,22 +60,23 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
     );
   }
 
-  void _startPayment(double amount) {
+void _startPayment(double amount) {
     _lastAmount = amount;
-    String myKey = 'rzp_test_Rxm27dLhNpIVZT'; // PASTE KEY HERE
+    String myKey = 'rzp_test_Rxm27dLhNpIVZT';
 
     if (kIsWeb) {
-      // WEB: Call the helper function we wrote in index.html
-      js.context.callMethod('payWithRazorpay', [
-        myKey,
-        (amount * 100).toInt(),
-        'Village Help',
-        'Donation',
-        'test@nri.com',
-        '9123456789'
-      ]);
+      // THE NEW INDUSTRY WAY: Call the gateway
+      gateway.openRazorpayWeb(
+        key: myKey,
+        amount: (amount * 100).toInt(),
+        name: 'Village Help',
+        description: 'Donation',
+        onSuccess: () {
+          _handlePaymentSuccess(PaymentSuccessResponse("web_id", "web_order", "web_sig", {}));
+        },
+      );
     } else {
-      // MOBILE: Use the standard plugin
+      // MOBILE: Keep using the standard plugin
       var options = {
         'key': myKey,
         'amount': (amount * 100).toInt(),
@@ -93,6 +87,7 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
       _razorpay.open(options);
     }
   }
+  
   // This is just for your testing phase on Web
   void _handleWebTestSuccess() {
     Future.delayed(const Duration(seconds: 5), () {

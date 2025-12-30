@@ -37,7 +37,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
         imageBytes: _selectedImage!,
         target: target,
         uId: user.uid,
-        uName: "Village Head", 
+        uName: "Sarpanch", 
       );
       Navigator.pop(context);
     }

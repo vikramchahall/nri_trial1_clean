@@ -36,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const Icon(Icons.volunteer_activism, size: 80, color: Colors.green),
               const SizedBox(height: 25),
-              const Text("V I L L A G E  H E L P", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text("N R I  C O N N E C T", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 25),
               MyTextField(controller: emailController, hintText: "Email", obscureText: false),
               const SizedBox(height: 10),
