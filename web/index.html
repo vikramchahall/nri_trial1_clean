@@ -1,7 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  function payWithRazorpay(key, amount, name, description, email, contact) {
+    var options = {
+      "key": key,
+      "amount": amount, // already in paisa
+      "name": name,
+      "description": description,
+      "prefill": {
+        "email": email,
+        "contact": contact
+      },
+      "theme": {
+        "color": "#4CAF50" // Village Green
+      },
+      "handler": function (response) {
+        // This tells the browser to send a signal back to Flutter on success
+        window.parent.postMessage("PAYMENT_SUCCESS", "*");
+      },
+      "modal": {
+        "ondismiss": function() {
+           window.parent.postMessage("PAYMENT_CANCELLED", "*");
+        }
+      }
+    };
+    var rzp = new Razorpay(options);
+    rzp.open();
+  }
+</script>
   <!--
     If you are serving your web app in a path other than the root, change the
     href value below to reflect the base path you are serving from.

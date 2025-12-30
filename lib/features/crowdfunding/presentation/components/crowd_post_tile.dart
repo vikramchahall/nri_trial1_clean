@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:razorpay_flutter/razorpay_flutter.dart'; // IMPORT THIS
-import 'package:nri_trial1_clean/features/crowdfunding/domain/entities/crowd_post.dart';
-import 'package:nri_trial1_clean/features/crowdfunding/presentation/cubits/crowd_cubit.dart';
-import 'package:nri_trial1_clean/features/crowdfunding/presentation/pages/crowd_history_page.dart';
-import 'package:nri_trial1_clean/features/auth/presentation/cubits/auth_cubit.dart';
-
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:flutter/foundation.dart'; // Required for kIsWeb
+import '../../domain/entities/crowd_post.dart';
+import '../cubits/crowd_cubit.dart';
+import '../pages/crowd_history_page.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
+import 'dart:js' as js; // This allows Flutter to talk to Javascript
+import 'dart:html' as html; // This allows us to listen for the success message
 
 class CrowdPostTile extends StatefulWidget {
   final CrowdPost crowdPost;
@@ -24,23 +26,30 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
   @override
   void initState() {
     super.initState();
-    // Initialize Razorpay
     _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+
+    if (!kIsWeb) {
+      _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+      _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+
+    } else {
+      // WEB ONLY: Listen for the "PAYMENT_SUCCESS" message from the index.html script
+      html.window.onMessage.listen((event) {
+        if (event.data == "PAYMENT_SUCCESS") {
+           _handlePaymentSuccess(PaymentSuccessResponse("web_id", "web_order", "web_sig", {}));
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
-    _razorpay.clear(); // Important to clean up
+    _razorpay.clear();
     super.dispose();
   }
 
-  // If payment is SUCCESSFUL
   void _handlePaymentSuccess(PaymentSuccessResponse response) {
     final user = context.read<AuthCubit>().currentUser;
-    
-    // Only update database IF payment succeeded
     context.read<CrowdCubit>().donate(
       widget.crowdPost.id, 
       user?.email?.split('@')[0] ?? "Verified Donor", 
@@ -52,35 +61,60 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
     );
   }
 
-  // If payment FAILS or is CANCELLED
   void _handlePaymentError(PaymentFailureResponse response) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Payment Failed: ${response.message}"), backgroundColor: Colors.red),
     );
   }
 
-  // Launch Razorpay Gateway
   void _startPayment(double amount) {
     _lastAmount = amount;
-    var options = {
-      'key': 'rzp_test_Rxm27dLhNpIVZT', // PASTE YOUR KEY ID HERE
-      'amount': (amount * 100).toInt(), // Razorpay works in Paisa (100 = ₹1)
-      'name': 'Village Help Donation',
-      'description': 'Cause: ${widget.crowdPost.userName}',
-      'prefill': {
-        'contact': '8837510630', 
-        'email': 'testvikram@razorpay.com'
-      },
-      'external': {
-        'wallets': ['paytm']
-      }
-    };
+    String myKey = 'rzp_test_Rxm27dLhNpIVZT'; // PASTE KEY HERE
 
-    try {
+    if (kIsWeb) {
+      // WEB: Call the helper function we wrote in index.html
+      js.context.callMethod('payWithRazorpay', [
+        myKey,
+        (amount * 100).toInt(),
+        'Village Help',
+        'Donation',
+        'test@nri.com',
+        '9123456789'
+      ]);
+    } else {
+      // MOBILE: Use the standard plugin
+      var options = {
+        'key': myKey,
+        'amount': (amount * 100).toInt(),
+        'name': 'Village Help',
+        'description': 'Donation',
+        'prefill': {'contact': '9123456789', 'email': 'test@nri.com'}
+      };
       _razorpay.open(options);
-    } catch (e) {
-      debugPrint('Error: e');
     }
+  }
+  // This is just for your testing phase on Web
+  void _handleWebTestSuccess() {
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Web Test Mode"),
+            content: const Text("On Web Test Mode, did you complete the payment in the pop-up?"),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _handlePaymentSuccess(PaymentSuccessResponse("test_id", "test_order", "test_sig",{}));
+                }, 
+                child: const Text("Yes, Update Progress Bar")
+              ),
+            ],
+          ),
+        );
+      }
+    });
   }
 
   @override
@@ -164,7 +198,7 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
               final amount = double.tryParse(controller.text) ?? 0;
               if (amount > 0) {
                 Navigator.pop(context);
-                _startPayment(amount); // THIS OPENS RAZORPAY
+                _startPayment(amount);
               }
             },
             child: const Text("Proceed to Pay"),
