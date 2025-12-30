@@ -1,19 +1,93 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart'; // IMPORT THIS
 import 'package:nri_trial1_clean/features/crowdfunding/domain/entities/crowd_post.dart';
 import 'package:nri_trial1_clean/features/crowdfunding/presentation/cubits/crowd_cubit.dart';
 import 'package:nri_trial1_clean/features/crowdfunding/presentation/pages/crowd_history_page.dart';
+import 'package:nri_trial1_clean/features/auth/presentation/cubits/auth_cubit.dart';
 
-class CrowdPostTile extends StatelessWidget {
+
+class CrowdPostTile extends StatefulWidget {
   final CrowdPost crowdPost;
-  final bool isAdmin; // To show/hide delete button
+  final bool isAdmin;
 
   const CrowdPostTile({super.key, required this.crowdPost, required this.isAdmin});
 
   @override
+  State<CrowdPostTile> createState() => _CrowdPostTileState();
+}
+
+class _CrowdPostTileState extends State<CrowdPostTile> {
+  late Razorpay _razorpay;
+  double _lastAmount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize Razorpay
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear(); // Important to clean up
+    super.dispose();
+  }
+
+  // If payment is SUCCESSFUL
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    final user = context.read<AuthCubit>().currentUser;
+    
+    // Only update database IF payment succeeded
+    context.read<CrowdCubit>().donate(
+      widget.crowdPost.id, 
+      user?.email?.split('@')[0] ?? "Verified Donor", 
+      _lastAmount
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Payment Successful! Thank you."), backgroundColor: Colors.green),
+    );
+  }
+
+  // If payment FAILS or is CANCELLED
+  void _handlePaymentError(PaymentFailureResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Payment Failed: ${response.message}"), backgroundColor: Colors.red),
+    );
+  }
+
+  // Launch Razorpay Gateway
+  void _startPayment(double amount) {
+    _lastAmount = amount;
+    var options = {
+      'key': 'rzp_test_Rxm27dLhNpIVZT', // PASTE YOUR KEY ID HERE
+      'amount': (amount * 100).toInt(), // Razorpay works in Paisa (100 = ₹1)
+      'name': 'Village Help Donation',
+      'description': 'Cause: ${widget.crowdPost.userName}',
+      'prefill': {
+        'contact': '8837510630', 
+        'email': 'testvikram@razorpay.com'
+      },
+      'external': {
+        'wallets': ['paytm']
+      }
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint('Error: e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Calculate progress (e.g., 0.5 for 50%)
-    double progress = crowdPost.targetAmount > 0 ? (crowdPost.raisedAmount / crowdPost.targetAmount) : 0;
+    double progress = widget.crowdPost.targetAmount > 0 
+        ? (widget.crowdPost.raisedAmount / widget.crowdPost.targetAmount) 
+        : 0;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
@@ -25,27 +99,15 @@ class CrowdPostTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Name & Delete (Only for Admin)
           ListTile(
-            title: Text(crowdPost.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
-            trailing: isAdmin ? IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => context.read<CrowdCubit>().deleteCrowd(crowdPost.id)) : null,
+            title: Text(widget.crowdPost.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
+            trailing: widget.isAdmin ? IconButton(icon: const Icon(Icons.delete), onPressed: () => context.read<CrowdCubit>().deleteCrowd(widget.crowdPost.id)) : null,
           ),
-
-          // Main Image
-if (crowdPost.imageUrl.isNotEmpty)
-  Image.network(
-    crowdPost.imageUrl,
-    height: 250,
-    width: double.infinity,
-    fit: BoxFit.cover,
-  ),
-
-
-          // --- PROGRESS SECTION ---
+          Image.network(widget.crowdPost.imageUrl, height: 250, width: double.infinity, fit: BoxFit.cover),
+          
           Padding(
             padding: const EdgeInsets.all(15.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
@@ -57,60 +119,55 @@ if (crowdPost.imageUrl.isNotEmpty)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Raised: ₹${crowdPost.raisedAmount}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                    Text("Goal: ₹${crowdPost.targetAmount}"),
+                    Text("Raised: ₹${widget.crowdPost.raisedAmount}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                    Text("Goal: ₹${widget.crowdPost.targetAmount}"),
                   ],
                 ),
               ],
             ),
           ),
 
-          // --- ACTION BUTTONS ---
           Row(
             children: [
               IconButton(
                 onPressed: () => _showDonationDialog(context),
                 icon: const Icon(Icons.volunteer_activism, color: Colors.redAccent),
               ),
-              const Text("Donate"),
-              const SizedBox(width: 20),
+              const Text("Donate Now"),
+              const Spacer(),
               IconButton(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CrowdHistoryPage(postId: crowdPost.id))),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CrowdHistoryPage(postId: widget.crowdPost.id))),
                 icon: const Icon(Icons.history),
               ),
-              const Text("History"),
+              const Padding(
+                padding: EdgeInsets.only(right: 15),
+                child: Text("History"),
+              ),
             ],
           ),
-
-          // Caption
-          Padding(
-            padding: const EdgeInsets.all(15.0),
-            child: Text(crowdPost.text),
-          ),
+          Padding(padding: const EdgeInsets.all(15.0), child: Text(widget.crowdPost.text)),
         ],
       ),
     );
   }
 
-  // Simple Donation Dialog (Simulation)
   void _showDonationDialog(BuildContext context) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Amount to Donate"),
+        title: const Text("Enter Amount"),
         content: TextField(controller: controller, keyboardType: TextInputType.number, decoration: const InputDecoration(prefixText: "₹ ")),
         actions: [
           ElevatedButton(
             onPressed: () {
               final amount = double.tryParse(controller.text) ?? 0;
               if (amount > 0) {
-                // We use a simple name for now, later we use current user name
-                context.read<CrowdCubit>().donate(crowdPost.id, "A Supporter", amount);
                 Navigator.pop(context);
+                _startPayment(amount); // THIS OPENS RAZORPAY
               }
             },
-            child: const Text("Confirm"),
+            child: const Text("Proceed to Pay"),
           )
         ],
       ),

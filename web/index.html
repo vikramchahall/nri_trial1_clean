@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <!--
     If you are serving your web app in a path other than the root, change the
     href value below to reflect the base path you are serving from.
@@ -41,6 +42,7 @@
 </head>
 <body>
   <script>
+    
     window.addEventListener('load', function(ev) {
       // Download main.dart.js
       _flutter.loader.loadEntrypoint({
@@ -55,5 +57,7 @@
       });
     });
   </script>
+
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </body>
 </html>
