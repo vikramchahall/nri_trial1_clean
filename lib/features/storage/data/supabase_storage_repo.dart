@@ -1,22 +1,22 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:nri_trial1_clean/features/storage/domain/storage_repo.dart';
-
+import '../domain/storage_repo.dart';
 
 class SupabaseStorageRepo implements StorageRepo {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  @override
-  Future<String?> uploadPostImageMobile(
+  // ===============================
+  // 🔁 SHARED UPLOAD HELPER (WEB + MOBILE)
+  // ===============================
+  Future<String?> _upload(
     Uint8List bytes,
-    String filePath,
+    String bucket,
+    String fileName,
   ) async {
     try {
-      // Upload image
-      await _supabase.storage
-          .from('post_images')
-          .uploadBinary(
-            filePath,
+      await _supabase.storage.from(bucket).uploadBinary(
+            fileName,
             bytes,
             fileOptions: const FileOptions(
               upsert: true,
@@ -24,15 +24,48 @@ class SupabaseStorageRepo implements StorageRepo {
             ),
           );
 
-      // Get public URL
-      final url = _supabase.storage
-          .from('post_images')
-          .getPublicUrl(filePath);
+      final String publicUrl =
+          _supabase.storage.from(bucket).getPublicUrl(fileName);
 
-      return url;
+      // 🔁 Cache-busting so updated images show immediately
+      return "$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}";
     } catch (e) {
-      print("❌ SUPABASE UPLOAD ERROR: $e");
+      debugPrint("❌ Supabase Upload Error: $e");
       return null;
     }
   }
+
+  // ===============================
+  // 📱 MOBILE
+  // ===============================
+  @override
+  Future<String?> uploadPostImageMobile(
+    Uint8List bytes,
+    String fileName,
+  ) =>
+      _upload(bytes, 'post_images', fileName);
+
+  @override
+  Future<String?> uploadProfileImageMobile(
+    Uint8List bytes,
+    String fileName,
+  ) =>
+      _upload(bytes, 'profile_images', fileName);
+
+  // ===============================
+  // 🌐 WEB
+  // ===============================
+  @override
+  Future<String?> uploadPostImageWeb(
+    Uint8List bytes,
+    String fileName,
+  ) =>
+      _upload(bytes, 'post_images', fileName);
+
+  @override
+  Future<String?> uploadProfileImageWeb(
+    Uint8List bytes,
+    String fileName,
+  ) =>
+      _upload(bytes, 'profile_images', fileName);
 }

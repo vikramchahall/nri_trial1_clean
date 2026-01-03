@@ -1,53 +1,85 @@
-import 'package:nri_trial1_clean/features/auth/domain/entities/app_user.dart';
+import '../../../../features/auth/domain/entities/app_user.dart';
 
 class ProfileUser extends AppUser {
-  final String name;
   final String bio;
   final String profileImageUrl;
 
   ProfileUser({
+    // ✅ REQUIRED AppUser FIELDS
     required super.uid,
     required super.email,
+    required super.username,
+    required super.userType,
     required super.isAdmin,
-    required this.name,
+
+    // OPTIONAL AppUser FIELDS
+    super.phoneNumber,
+    super.city,
+    super.town,
+
+    // FOLLOW SYSTEM
+    super.followers,
+    super.following,
+
+    // PROFILE-SPECIFIC FIELDS
     required this.bio,
     required this.profileImageUrl,
   });
 
-  // Update profile info helper
-  ProfileUser copyWith({String? newBio, String? newProfileImageUrl, String? newName}) {
+  // ✅ Required by ProfileCubit
+  ProfileUser copyWith({
+    String? newBio,
+    String? newProfileImageUrl,
+    String? newUsername,
+  }) {
     return ProfileUser(
       uid: uid,
       email: email,
+      username: newUsername ?? username,
+      userType: userType,
       isAdmin: isAdmin,
-      name: newName ?? name,
+      phoneNumber: phoneNumber,
+      city: city,
+      town: town,
       bio: newBio ?? bio,
       profileImageUrl: newProfileImageUrl ?? profileImageUrl,
+      followers: followers,
+      following: following,
     );
   }
 
-  // Convert for Firestore
   @override
   Map<String, dynamic> toJson() {
     return {
       'uid': uid,
       'email': email,
+      'username': username,
+      'userType': userType,
+      'phoneNumber': phoneNumber,
+      'city': city,
+      'town': town,
       'isAdmin': isAdmin,
-      'name': name,
       'bio': bio,
       'profileImageUrl': profileImageUrl,
+      'followers': followers,
+      'following': following,
     };
   }
 
-  // Read from Firestore
   factory ProfileUser.fromJson(Map<String, dynamic> json) {
     return ProfileUser(
       uid: json['uid'] ?? '',
       email: json['email'] ?? '',
+      username: json['username'] ?? '',
+      userType: json['userType'] ?? 'Supporter',
       isAdmin: json['isAdmin'] ?? false,
-      name: json['name'] ?? '',
+      phoneNumber: json['phoneNumber'] ?? '',
+      city: json['city'] ?? '',
+      town: json['town'] ?? '',
       bio: json['bio'] ?? '',
       profileImageUrl: json['profileImageUrl'] ?? '',
+      followers: List<String>.from(json['followers'] ?? []),
+      following: List<String>.from(json['following'] ?? []),
     );
   }
 }

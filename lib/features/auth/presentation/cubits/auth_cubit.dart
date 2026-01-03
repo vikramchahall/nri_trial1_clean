@@ -9,7 +9,7 @@ class AuthCubit extends Cubit<AuthState> {
 
   AuthCubit({required this.authRepo}) : super(AuthInitial());
 
-  // Check if user is already logged in
+  // ================= CHECK AUTH =================
   void checkAuth() async {
     final user = await authRepo.getCurrentUser();
     if (user != null) {
@@ -22,11 +22,13 @@ class AuthCubit extends Cubit<AuthState> {
 
   AppUser? get currentUser => _currentUser;
 
-  // Login
+  // ================= LOGIN =================
   Future<void> login(String email, String password) async {
     try {
       emit(AuthLoading());
-      final user = await authRepo.loginWithEmailPassword(email, password);
+      final user =
+          await authRepo.loginWithEmailPassword(email, password);
+
       if (user != null) {
         _currentUser = user;
         emit(Authenticated(user));
@@ -38,25 +40,70 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  // Register
-  Future<void> register(String email, String password) async {
+  // ================= SIMPLE SUPPORTER REGISTER =================
+  Future<void> registerSimple({
+    required String email,
+    required String password,
+    required String username,
+  }) async {
     try {
       emit(AuthLoading());
-      final user = await authRepo.registerWithEmailPassword(email, password);
+
+      final user = await authRepo.registerSimple(
+        email: email,
+        password: password,
+        username: username,
+      );
+
       if (user != null) {
         _currentUser = user;
         emit(Authenticated(user));
-      } else {
-        emit(Unauthenticated());
       }
     } catch (e) {
       emit(AuthError(e.toString()));
     }
   }
 
-  // Logout
+  // ================= VERIFIED SARPANCH REGISTER (OTP) =================
+  Future<void> registerSarpanchVerified({
+    required String email,
+    required String password,
+    required String username,
+    required String phone,
+    required String city,
+    required String town,
+    required String otp,
+    dynamic webResult,
+    String? vId,
+  }) async {
+    try {
+      emit(AuthLoading());
+
+      final user = await authRepo.registerVerifiedSarpanch(
+        email: email,
+        password: password,
+        username: username,
+        phoneNumber: phone,
+        city: city,
+        town: town,
+        otpCode: otp,
+        webResult: webResult,
+        verificationId: vId,
+      );
+
+      if (user != null) {
+        _currentUser = user;
+        emit(Authenticated(user));
+      }
+    } catch (e) {
+      emit(AuthError(e.toString()));
+    }
+  }
+
+  // ================= LOGOUT =================
   Future<void> logout() async {
-    authRepo.logout();
+    await authRepo.logout();
+    _currentUser = null;
     emit(Unauthenticated());
   }
 }

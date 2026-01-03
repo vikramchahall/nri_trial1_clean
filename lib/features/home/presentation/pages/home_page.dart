@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../auth/presentation/cubits/auth_cubit.dart';
-import '../../../crowdfunding/presentation/components/crowd_post_tile.dart';
-import '../../../crowdfunding/presentation/cubits/crowd_cubit.dart';
-import '../../../crowdfunding/presentation/cubits/crowd_states.dart';
+import '../../../auth/presentation/cubits/auth_states.dart';
+import '../../../auth/domain/entities/app_user.dart';
+import '../../../crowdfunding/presentation/pages/crowd_feed_page.dart';
 import '../../../crowdfunding/presentation/pages/upload_crowd_page.dart';
-import '../../../profile/presentation/pages/profile_page.dart';
+import '../../../profile/presentation/pages/my_profile_page.dart';
+import '../../../search/presentation/pages/search_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -16,79 +17,79 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  @override
-  void initState() {
-    super.initState();
-    context.read<CrowdCubit>().fetchAllCrowds();
-  }
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
-    final user = context.read<AuthCubit>().currentUser;
+    return BlocBuilder<AuthCubit, AuthState>(
+      builder: (context, state) {
+        // ✅ GET USER FROM STATE (NOT FROM CUBIT VARIABLE)
+        AppUser? user;
+        if (state is Authenticated) {
+          user = state.user;
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Village Feed"),
+        // 🔐 SAFETY: auth not ready yet
+        if (user == null) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-        actions: [
-          // 👤 PROFILE (FOR BOTH)
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ProfilePage(uid: user!.uid),
-              ),
-            ),
+        final List<Widget> pages = [
+          const CrowdFeedPage(),
+          const SearchPage(),
+          MyProfilePage(uid: user.uid),
+        ];
+
+        return Scaffold(
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: pages,
           ),
 
-          // 🚪 LOGOUT (FOR BOTH)
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => context.read<AuthCubit>().logout(),
-          ),
+          // ➕ ADMIN ICON — NOW REACTS TO ROLE CHANGES
+          floatingActionButton:
+              (user.isAdmin && _selectedIndex == 0)
+                  ? FloatingActionButton(
+                      backgroundColor: Colors.green.shade600,
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const UploadCrowdPage(),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.add_a_photo,
+                        color: Colors.white,
+                      ),
+                    )
+                  : null,
 
-          // ➕ ONLY ADMIN
-          if (user?.isAdmin ?? false)
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const UploadCrowdPage(),
-                ),
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: _selectedIndex,
+            onTap: (index) =>
+                setState(() => _selectedIndex = index),
+            selectedItemColor: Colors.green.shade700,
+            unselectedItemColor: Colors.grey,
+            type: BottomNavigationBarType.fixed,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home),
+                label: "Home",
               ),
-            ),
-        ],
-      ),
-
-      body: BlocBuilder<CrowdCubit, CrowdState>(
-        builder: (context, state) {
-          if (state is CrowdLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (state is CrowdLoaded) {
-            final crowds = state.crowds;
-
-            if (crowds.isEmpty) {
-              return const Center(child: Text("No causes posted yet."));
-            }
-
-            return ListView.builder(
-              itemCount: crowds.length,
-              itemBuilder: (context, index) {
-                return CrowdPostTile(
-                  crowdPost: crowds[index],
-                  isAdmin: user?.isAdmin ?? false,
-                );
-              },
-            );
-          }
-
-          return const Center(child: Text("Error loading feed"));
-        },
-      ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.search),
+                label: "Search",
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person),
+                label: "Profile",
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 
 abstract class StorageRepo {
-  // We use Uint8List because it works for both Mobile and Web
   Future<String?> uploadPostImageMobile(Uint8List bytes, String fileName);
+  Future<String?> uploadProfileImageMobile(Uint8List bytes, String fileName);
+
+  Future<String?> uploadPostImageWeb(Uint8List bytes, String fileName);
+  Future<String?> uploadProfileImageWeb(Uint8List bytes, String fileName);
 }

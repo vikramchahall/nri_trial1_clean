@@ -21,7 +21,49 @@ class FirebaseProfileRepo implements ProfileRepo {
   @override
   Future<void> updateProfile(ProfileUser updatedProfile) async {
     try {
-      await _firestore.collection('users').doc(updatedProfile.uid).update(updatedProfile.toJson());
+      await _firestore
+          .collection('users')
+          .doc(updatedProfile.uid)
+          .update(updatedProfile.toJson());
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  // ===============================
+  // ✅ FOLLOW / UNFOLLOW LOGIC (STEP 2)
+  // ===============================
+  @override // ADD THIS LINE HERE
+  Future<void> toggleFollow(
+    String currentUid,
+    String targetUid,
+  ) async {
+    try {
+      final currentUserDoc =
+          _firestore.collection('users').doc(currentUid);
+      final targetUserDoc =
+          _firestore.collection('users').doc(targetUid);
+
+      final doc = await currentUserDoc.get();
+      final List following = doc['following'] ?? [];
+
+      if (following.contains(targetUid)) {
+        // 🔁 UNFOLLOW
+        await currentUserDoc.update({
+          'following': FieldValue.arrayRemove([targetUid]),
+        });
+        await targetUserDoc.update({
+          'followers': FieldValue.arrayRemove([currentUid]),
+        });
+      } else {
+        // ➕ FOLLOW
+        await currentUserDoc.update({
+          'following': FieldValue.arrayUnion([targetUid]),
+        });
+        await targetUserDoc.update({
+          'followers': FieldValue.arrayUnion([currentUid]),
+        });
+      }
     } catch (e) {
       throw Exception(e);
     }

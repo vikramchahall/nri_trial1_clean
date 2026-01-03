@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "nri_trial1_clean (Web – Port 3000)",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--web-port=3000"]
+    },
+    {
+      "name": "nri_trial1_clean (profile mode)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile"
+    },
+    {
+      "name": "nri_trial1_clean (release mode)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "release"
+    }
+  ]
+}

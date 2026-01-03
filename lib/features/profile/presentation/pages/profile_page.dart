@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nri_trial1_clean/components/my_bio_box.dart';
-import 'package:nri_trial1_clean/features/auth/presentation/cubits/auth_cubit.dart';
+
 import 'package:nri_trial1_clean/features/profile/presentation/cubits/profile_cubit.dart';
 import 'package:nri_trial1_clean/features/profile/presentation/cubits/profile_state.dart';
 
@@ -31,11 +31,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
           return Scaffold(
             appBar: AppBar(
-              title: Text(user.name.isNotEmpty ? user.name : user.email),
+              title: Text("@${user.username}"),
               actions: [
                 // Edit button
                 IconButton(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ProfileEditPage(user: user))),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          ProfileEditPage(user: user),
+                    ),
+                  ),
                   icon: const Icon(Icons.settings),
                 )
               ],
@@ -43,30 +49,71 @@ class _ProfilePageState extends State<ProfilePage> {
             body: Column(
               children: [
                 const SizedBox(height: 25),
+
                 // Profile Pic Placeholder
                 Center(
                   child: Container(
-                    height: 120, width: 120,
-                    decoration: BoxDecoration(color: Colors.grey.shade300, shape: BoxShape.circle),
-                    child: const Icon(Icons.person, size: 72, color: Colors.grey),
+                    height: 120,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      shape: BoxShape.circle,
+                    ),
+                    child:
+                        const Icon(Icons.person, size: 72, color: Colors.grey),
                   ),
                 ),
+
                 const SizedBox(height: 25),
+
                 // Role Badge
-                Text(user.isAdmin ? "VILLAGE HEAD" : "COMMUNITY SUPPORTER", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                Text(
+                  user.isAdmin
+                      ? "VILLAGE HEAD"
+                      : "COMMUNITY SUPPORTER",
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                // ✅ LOCATION (ONLY FOR SARPANCH)
+                if (user.userType == 'Sarpanch')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.location_on,
+                            size: 14, color: Colors.grey),
+                        Text(
+                          " ${user.town}, ${user.city}",
+                          style: const TextStyle(
+                              color: Colors.grey, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 const SizedBox(height: 25),
+
                 // Bio Box
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 25.0),
                   child: MyBioBox(text: user.bio),
                 ),
               ],
             ),
           );
         } else if (state is ProfileLoading) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         } else {
-          return const Scaffold(body: Center(child: Text("Profile error")));
+          return const Scaffold(
+            body: Center(child: Text("Profile error")),
+          );
         }
       },
     );

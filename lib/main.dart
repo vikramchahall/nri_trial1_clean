@@ -16,7 +16,7 @@ import 'features/crowdfunding/presentation/cubits/crowd_cubit.dart';
 // 🔹 STORAGE
 import 'features/storage/data/supabase_storage_repo.dart';
 
-// 🔹 PROFILE ✅ NEW
+// 🔹 PROFILE
 import 'features/profile/data/firebase_profile_repo.dart';
 import 'features/profile/presentation/cubits/profile_cubit.dart';
 
@@ -49,26 +49,33 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ CREATE REPO SINGLETONS
+    final authRepo = FirebaseAuthRepo();
+    final crowdRepo = FirebaseCrowdRepo();
+    final profileRepo = FirebaseProfileRepo();
+    final storageRepo = SupabaseStorageRepo();
+
     return MultiBlocProvider(
       providers: [
         // 🔹 AUTH
         BlocProvider(
-          create: (context) =>
-              AuthCubit(authRepo: FirebaseAuthRepo())..checkAuth(),
+          create: (_) => AuthCubit(authRepo: authRepo)..checkAuth(),
         ),
 
         // 🔹 CROWDFUNDING
         BlocProvider(
-          create: (context) => CrowdCubit(
-            crowdRepo: FirebaseCrowdRepo(),
-            storageRepo: SupabaseStorageRepo(),
+          create: (_) => CrowdCubit(
+            crowdRepo: crowdRepo,
+            storageRepo: storageRepo,
           ),
         ),
 
-        // 🔹 PROFILE ✅ NEW
+        // 🔹 PROFILE
         BlocProvider(
-          create: (context) =>
-              ProfileCubit(profileRepo: FirebaseProfileRepo()),
+          create: (_) => ProfileCubit(
+            profileRepo: profileRepo,
+            storageRepo: storageRepo,
+          ),
         ),
       ],
       child: MaterialApp(
