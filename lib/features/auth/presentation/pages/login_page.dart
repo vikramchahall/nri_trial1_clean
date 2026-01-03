@@ -34,19 +34,57 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.volunteer_activism, size: 80, color: Colors.green),
+              // 🟢 PUNJAB GOVERNMENT LOGO
+ Image.asset(
+  'assets/logo.png', // Make sure this matches your filename exactly
+  height: 150,       // You can change this to make it bigger or smaller
+  fit: BoxFit.contain,
+),
+
               const SizedBox(height: 25),
-              const Text("V I L L A G E  H E L P", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+
+              const Text(
+                "N R I  C O N N E C T",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
               const SizedBox(height: 25),
-              MyTextField(controller: emailController, hintText: "Email", obscureText: false),
+
+              MyTextField(
+                controller: emailController,
+                hintText: "Email",
+                obscureText: false,
+              ),
+
               const SizedBox(height: 10),
-              MyTextField(controller: pwController, hintText: "Password", obscureText: true),
+
+              MyTextField(
+                controller: pwController,
+                hintText: "Password",
+                obscureText: true,
+              ),
+
               const SizedBox(height: 25),
-              MyButton(onTap: login, text: "Login"),
+
+              MyButton(
+                onTap: login,
+                text: "Login",
+              ),
+
               const SizedBox(height: 25),
+
               GestureDetector(
                 onTap: widget.onTap,
-                child: const Text("Not a member? Register now", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  "Not a member? Register now",
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),

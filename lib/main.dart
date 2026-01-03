@@ -16,6 +16,10 @@ import 'features/crowdfunding/presentation/cubits/crowd_cubit.dart';
 // 🔹 STORAGE
 import 'features/storage/data/supabase_storage_repo.dart';
 
+// 🔹 PROFILE
+import 'features/profile/data/firebase_profile_repo.dart';
+import 'features/profile/presentation/cubits/profile_cubit.dart';
+
 // 🔹 HOME
 import 'features/home/presentation/pages/home_page.dart';
 
@@ -45,19 +49,32 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ CREATE REPO SINGLETONS
+    final authRepo = FirebaseAuthRepo();
+    final crowdRepo = FirebaseCrowdRepo();
+    final profileRepo = FirebaseProfileRepo();
+    final storageRepo = SupabaseStorageRepo();
+
     return MultiBlocProvider(
       providers: [
-        // 🔹 AUTH CUBIT
+        // 🔹 AUTH
         BlocProvider(
-          create: (context) =>
-              AuthCubit(authRepo: FirebaseAuthRepo())..checkAuth(),
+          create: (_) => AuthCubit(authRepo: authRepo)..checkAuth(),
         ),
 
-        // 🔹 CROWD CUBIT
+        // 🔹 CROWDFUNDING
         BlocProvider(
-          create: (context) => CrowdCubit(
-            crowdRepo: FirebaseCrowdRepo(),
-            storageRepo: SupabaseStorageRepo(),
+          create: (_) => CrowdCubit(
+            crowdRepo: crowdRepo,
+            storageRepo: storageRepo,
+          ),
+        ),
+
+        // 🔹 PROFILE
+        BlocProvider(
+          create: (_) => ProfileCubit(
+            profileRepo: profileRepo,
+            storageRepo: storageRepo,
           ),
         ),
       ],
@@ -67,23 +84,18 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
           useMaterial3: true,
         ),
-
-        // 🔥 ROUTE DECISION BASED ON AUTH
         home: BlocBuilder<AuthCubit, AuthState>(
           builder: (context, state) {
-            // ✅ Logged in
             if (state is Authenticated) {
               return const HomePage();
             }
 
-            // ⏳ Loading
             if (state is AuthLoading) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
             }
 
-            // ❌ Not logged in
             return const AuthPage();
           },
         ),

@@ -1,117 +1,296 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:nri_trial1_clean/features/crowdfunding/domain/entities/crowd_post.dart';
-import 'package:nri_trial1_clean/features/crowdfunding/presentation/cubits/crowd_cubit.dart';
-import 'package:nri_trial1_clean/features/crowdfunding/presentation/pages/crowd_history_page.dart';
+import 'package:flutter/foundation.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class CrowdPostTile extends StatelessWidget {
+import '../../domain/entities/crowd_post.dart';
+import '../cubits/crowd_cubit.dart';
+import '../pages/crowd_history_page.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
+import 'package:nri_trial1_clean/services/payment_gateway.dart' as gateway;
+
+class CrowdPostTile extends StatefulWidget {
   final CrowdPost crowdPost;
-  final bool isAdmin; // To show/hide delete button
+  const CrowdPostTile({super.key, required this.crowdPost});
 
-  const CrowdPostTile({super.key, required this.crowdPost, required this.isAdmin});
+  @override
+  State<CrowdPostTile> createState() => _CrowdPostTileState();
+}
+
+class _CrowdPostTileState extends State<CrowdPostTile> {
+  late Razorpay _razorpay;
+  double _lastAmount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (!kIsWeb) {
+      _razorpay = Razorpay();
+      _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handleMobileSuccess);
+      _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    }
+  }
+
+  void _handleMobileSuccess(PaymentSuccessResponse response) {
+    _onPaymentSuccess();
+  }
+
+  void _onPaymentSuccess() {
+    final user = context.read<AuthCubit>().currentUser;
+
+    final String donorName =
+        (user != null && user.username.trim().isNotEmpty)
+            ? user.username
+            : "Anonymous Donor";
+
+    context.read<CrowdCubit>().donate(
+          widget.crowdPost.id,
+          donorName,
+          _lastAmount,
+        );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Donation Successful!"),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Payment Failed: ${response.message}"),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _startPayment(double amount) {
+    _lastAmount = amount;
+    const String myKey = 'rzp_test_Rxm27dLhNpIVZT';
+
+    if (kIsWeb) {
+      gateway.openRazorpayWeb(
+        key: myKey,
+        amount: (amount * 100).toInt(),
+        name: 'Village Help',
+        description: 'Donation',
+        onSuccess: () => _onPaymentSuccess(),
+      );
+    } else {
+      final options = {
+        'key': myKey,
+        'amount': (amount * 100).toInt(),
+        'name': 'Village Help',
+        'description': 'Donation',
+      };
+
+      _razorpay.open(options);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (!kIsWeb) {
+      _razorpay.clear();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Calculate progress (e.g., 0.5 for 50%)
-    double progress = crowdPost.targetAmount > 0 ? (crowdPost.raisedAmount / crowdPost.targetAmount) : 0;
+    final user = context.read<AuthCubit>().currentUser;
+
+    final bool canDelete =
+        (user != null && user.isAdmin && user.uid == widget.crowdPost.userId);
+
+    // 🔥 CORE LOGIC
+    final bool isDonationPost = widget.crowdPost.targetAmount > 0;
+
+    final double progress = isDonationPost
+        ? widget.crowdPost.raisedAmount /
+            widget.crowdPost.targetAmount
+        : 0;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 4),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Name & Delete (Only for Admin)
+          // 👤 HEADER
           ListTile(
-            title: Text(crowdPost.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
-            trailing: isAdmin ? IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => context.read<CrowdCubit>().deleteCrowd(crowdPost.id)) : null,
+            leading: FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(widget.crowdPost.userId)
+                  .get(),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data!.exists) {
+                  final data =
+                      snapshot.data!.data() as Map<String, dynamic>;
+                  final String? url = data['profileImageUrl'];
+
+                  return CircleAvatar(
+                    backgroundImage:
+                        (url != null && url.isNotEmpty)
+                            ? NetworkImage(url)
+                            : null,
+                    child: (url == null || url.isEmpty)
+                        ? const Icon(Icons.person)
+                        : null,
+                  );
+                }
+                return const CircleAvatar(child: Icon(Icons.person));
+              },
+            ),
+            title: Text(
+              "@${widget.crowdPost.userName}",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            trailing: canDelete
+                ? IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _confirmDelete(context),
+                  )
+                : null,
           ),
 
-          // Main Image
-if (crowdPost.imageUrl.isNotEmpty)
-  Image.network(
-    crowdPost.imageUrl,
-    height: 250,
-    width: double.infinity,
-    fit: BoxFit.cover,
-  ),
-
-
-          // --- PROGRESS SECTION ---
-          Padding(
-            padding: const EdgeInsets.all(15.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                LinearProgressIndicator(
-                  value: progress.clamp(0.0, 1.0),
-                  backgroundColor: Colors.grey.shade200,
-                  color: Colors.green.shade600,
-                  minHeight: 12,
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text("Raised: ₹${crowdPost.raisedAmount}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                    Text("Goal: ₹${crowdPost.targetAmount}"),
-                  ],
-                ),
-              ],
+          // 🖼 IMAGE
+          AspectRatio(
+            aspectRatio: 1 / 1,
+            child: Image.network(
+              widget.crowdPost.imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  const Center(child: Icon(Icons.broken_image)),
             ),
           ),
 
-          // --- ACTION BUTTONS ---
+          // 💰 PROGRESS (ONLY FOR DONATION POSTS)
+          if (isDonationPost)
+            Padding(
+              padding: const EdgeInsets.all(15.0),
+              child: Column(
+                children: [
+                  LinearProgressIndicator(
+                    value: progress.clamp(0.0, 1.0),
+                    color: Colors.green,
+                    minHeight: 12,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Raised: ₹${widget.crowdPost.raisedAmount}",
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green),
+                      ),
+                      Text(
+                          "Goal: ₹${widget.crowdPost.targetAmount}"),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+          // 🔘 ACTION ROW
           Row(
             children: [
+              if (isDonationPost) ...[
+                IconButton(
+                  onPressed: () => _showDonationDialog(context),
+                  icon: const Icon(Icons.volunteer_activism,
+                      color: Colors.redAccent),
+                ),
+                const Text("Donate"),
+                const SizedBox(width: 20),
+              ],
               IconButton(
-                onPressed: () => _showDonationDialog(context),
-                icon: const Icon(Icons.volunteer_activism, color: Colors.redAccent),
-              ),
-              const Text("Donate"),
-              const SizedBox(width: 20),
-              IconButton(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CrowdHistoryPage(postId: crowdPost.id))),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CrowdHistoryPage(
+                        postId: widget.crowdPost.id),
+                  ),
+                ),
                 icon: const Icon(Icons.history),
               ),
               const Text("History"),
             ],
           ),
 
-          // Caption
+          // 📝 CAPTION
           Padding(
             padding: const EdgeInsets.all(15.0),
-            child: Text(crowdPost.text),
+            child: Text(widget.crowdPost.text),
           ),
         ],
       ),
     );
   }
 
-  // Simple Donation Dialog (Simulation)
-  void _showDonationDialog(BuildContext context) {
-    final controller = TextEditingController();
+  void _confirmDelete(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Amount to Donate"),
-        content: TextField(controller: controller, keyboardType: TextInputType.number, decoration: const InputDecoration(prefixText: "₹ ")),
+      builder: (_) => AlertDialog(
+        title: const Text("Delete Post?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              context
+                  .read<CrowdCubit>()
+                  .deleteCrowd(widget.crowdPost.id);
+              Navigator.pop(context);
+            },
+            child:
+                const Text("Delete", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDonationDialog(BuildContext context) {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Enter Amount"),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(prefixText: "₹ "),
+        ),
         actions: [
           ElevatedButton(
             onPressed: () {
-              final amount = double.tryParse(controller.text) ?? 0;
+              final amount =
+                  double.tryParse(controller.text) ?? 0;
               if (amount > 0) {
-                // We use a simple name for now, later we use current user name
-                context.read<CrowdCubit>().donate(crowdPost.id, "A Supporter", amount);
                 Navigator.pop(context);
+                _startPayment(amount);
               }
             },
-            child: const Text("Confirm"),
-          )
+            child: const Text("Proceed"),
+          ),
         ],
       ),
     );
