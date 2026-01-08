@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nri_trial1_clean/features/crowdfunding/domain/entities/crowd_post.dart';
+import 'package:nri_trial1_clean/features/crowdfunding/domain/entities/comment.dart';
 import 'package:nri_trial1_clean/features/crowdfunding/domain/repos/crowd_repo.dart';
 
 class FirebaseCrowdRepo implements CrowdRepo {
@@ -55,6 +56,37 @@ class FirebaseCrowdRepo implements CrowdRepo {
       });
     } catch (e) {
       throw Exception("Donation failed: $e");
+    }
+  }
+
+  // ===============================
+  // 🔽 COMMENT LOGIC (ADDED)
+  // ===============================
+
+  @override
+  Future<void> addComment(String postId, Comment comment) async {
+    try {
+      await _firestore
+          .collection('posts')
+          .doc(postId)
+          .collection('comments')
+          .add(comment.toJson());
+    } catch (e) {
+      throw Exception("Failed to add comment: $e");
+    }
+  }
+
+  @override
+  Future<void> deleteComment(String postId, String commentId) async {
+    try {
+      await _firestore
+          .collection('posts')
+          .doc(postId)
+          .collection('comments')
+          .doc(commentId)
+          .delete();
+    } catch (e) {
+      throw Exception("Failed to delete comment: $e");
     }
   }
 }

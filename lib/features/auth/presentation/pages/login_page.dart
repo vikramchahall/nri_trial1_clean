@@ -36,8 +36,8 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               // 🟢 PUNJAB GOVERNMENT LOGO
  Image.asset(
-  'assets/logo.png', // Make sure this matches your filename exactly
-  height: 150,       // You can change this to make it bigger or smaller
+  'assets/logo.png', 
+  height: 150,       
   fit: BoxFit.contain,
 ),
 

@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/foundation.dart'; // kIsWeb
 import 'package:image_picker/image_picker.dart';
 
 import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
+import 'package:nri_trial1_clean/utlis/image_converter.dart';
 
 class UploadCrowdPage extends StatefulWidget {
   const UploadCrowdPage({super.key});
@@ -19,22 +21,49 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
   final ImagePicker _picker = ImagePicker();
 
   Uint8List? _selectedImage;
-  bool _isUploading = false;
+  String? _selectedFileName;
 
-  // 🔥 Donation toggle
+  bool _isUploading = false;
   bool _isDonationPost = false;
 
+  // ===============================
+  // 📷 PICK IMAGE (HEIC SAFE)
+  // ===============================
   Future<void> _pickImage() async {
-    final image =
-        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
 
-    if (image != null) {
-      final bytes = await image.readAsBytes();
-      setState(() => _selectedImage = bytes);
+    if (image == null) return;
+
+    final String lowerName = image.name.toLowerCase();
+
+    // 🚫 BLOCK HEIC ON WEB (CRITICAL)
+    if (kIsWeb &&
+        (lowerName.endsWith('.heic') || lowerName.endsWith('.heif'))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "HEIC images are not supported on web. Please upload JPG or PNG.",
+          ),
+        ),
+      );
+      return;
     }
+
+    final bytes = await image.readAsBytes();
+
+    setState(() {
+      _selectedImage = bytes;
+      _selectedFileName = image.name;
+    });
   }
 
-  void _upload() async {
+  // ===============================
+  // ⬆️ UPLOAD POST
+  // ===============================
+  Future<void> _upload() async {
     final user = context.read<AuthCubit>().currentUser;
 
     if (user == null) {
@@ -44,7 +73,6 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
       return;
     }
 
-    // 🎯 Target amount logic
     double targetValue = 0;
     if (_isDonationPost) {
       targetValue = double.tryParse(_targetController.text) ?? 0;
@@ -58,7 +86,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
       }
     }
 
-    if (_selectedImage == null) {
+    if (_selectedImage == null || _selectedFileName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please select an image")),
       );
@@ -67,10 +95,21 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
 
     setState(() => _isUploading = true);
 
+    // ===============================
+    // 🧠 IMAGE PREPARATION
+    // ===============================
+    final String nameLower = _selectedFileName!.toLowerCase();
+    final bool isHeic =
+        nameLower.endsWith('.heic') || nameLower.endsWith('.heif');
+
+    // Convert ONLY on mobile
+    final Uint8List safeBytes =
+        convertToJpegIfNeeded(_selectedImage!, _selectedFileName!);
+
     await context.read<CrowdCubit>().createCrowdPost(
           text: _captionController.text,
-          imageBytes: _selectedImage!,
-          target: targetValue, // 0 if toggle OFF
+          imageBytes: safeBytes,
+          target: targetValue,
           uId: user.uid,
           uName: user.username,
         );
@@ -78,6 +117,9 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     if (mounted) Navigator.pop(context);
   }
 
+  // ===============================
+  // 🖥 UI
+  // ===============================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -94,7 +136,6 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // 📷 IMAGE PICKER
             GestureDetector(
               onTap: _pickImage,
               child: Container(
@@ -105,14 +146,18 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: _selectedImage != null
-                    ? Image.memory(_selectedImage!, fit: BoxFit.cover)
+                    ? Image.memory(
+                        _selectedImage!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            const Icon(Icons.broken_image, size: 50),
+                      )
                     : const Icon(Icons.add_a_photo, size: 50),
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // 💰 DONATION TOGGLE
             SwitchListTile(
               title: const Text(
                 "Post for Donation?",
@@ -124,23 +169,21 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
               onChanged: (val) => setState(() => _isDonationPost = val),
             ),
 
-            const SizedBox(height: 10),
-
-            // 💸 TARGET AMOUNT
-            if (_isDonationPost)
+            if (_isDonationPost) ...[
+              const SizedBox(height: 10),
               TextField(
                 controller: _targetController,
+                keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
                   labelText: "Target Money Needed (₹)",
                   prefixIcon: Icon(Icons.currency_rupee),
                   border: OutlineInputBorder(),
                 ),
-                keyboardType: TextInputType.number,
               ),
+            ],
 
             const SizedBox(height: 15),
 
-            // 📝 DESCRIPTION
             TextField(
               controller: _captionController,
               maxLines: 3,
