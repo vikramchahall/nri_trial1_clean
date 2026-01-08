@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 import '../../domain/entities/crowd_post.dart';
 import '../../domain/entities/comment.dart';
@@ -98,10 +99,10 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                       final commentId = comments[index].id;
 
                       final bool canDelete =
-                          (currentUser != null &&
-                              (currentUser.uid == data['userId'] ||
-                                  currentUser.uid ==
-                                      widget.crowdPost.userId));
+                          currentUser != null &&
+                          (currentUser.uid == data['userId'] ||
+                              currentUser.uid ==
+                                  widget.crowdPost.userId);
 
                       return ListTile(
                         leading: const CircleAvatar(
@@ -190,7 +191,7 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
   void _onPaymentSuccess() {
     final user = context.read<AuthCubit>().currentUser;
 
-    final String donorName =
+    final donorName =
         (user != null && user.username.trim().isNotEmpty)
             ? user.username
             : "Anonymous Donor";
@@ -231,39 +232,23 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
         onSuccess: () => _onPaymentSuccess(),
       );
     } else {
-      final options = {
+      _razorpay.open({
         'key': myKey,
         'amount': (amount * 100).toInt(),
         'name': 'Village Help',
         'description': 'Donation',
-      };
-
-      _razorpay.open(options);
+      });
     }
-  }
-
-  @override
-  void dispose() {
-    commentController.dispose();
-    if (!kIsWeb) _razorpay.clear();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final currentUser = context.read<AuthCubit>().currentUser;
 
-    final bool canDeletePost =
-        (currentUser != null &&
-            currentUser.isAdmin &&
-            currentUser.uid == widget.crowdPost.userId);
-
     final bool isDonationPost = widget.crowdPost.targetAmount > 0;
 
-    final double progress = isDonationPost
-        ? widget.crowdPost.raisedAmount /
-            widget.crowdPost.targetAmount
-        : 0;
+    final bool isLiked = currentUser != null &&
+        widget.crowdPost.likes.contains(currentUser.uid);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
@@ -282,12 +267,6 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
               "@${widget.crowdPost.userName}",
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            trailing: canDeletePost
-                ? IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _confirmDelete(context),
-                  )
-                : null,
           ),
 
           AspectRatio(
@@ -300,100 +279,64 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
             ),
           ),
 
-          if (isDonationPost)
-            Padding(
-              padding: const EdgeInsets.all(15),
-              child: Column(
-                children: [
-                  LinearProgressIndicator(
-                    value: progress.clamp(0, 1),
-                    color: Colors.green,
-                    minHeight: 12,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Raised: ₹${widget.crowdPost.raisedAmount}",
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green),
-                      ),
-                      Text("Goal: ₹${widget.crowdPost.targetAmount}"),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-          // 🔘 ACTION ROW (FIXED)
+          // 🔘 ACTION ROW — MOBILE SAFE
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                if (isDonationPost)
-                  InkWell(
-                    onTap: () => _showDonationDialog(context),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.volunteer_activism,
-                            color: Colors.redAccent, size: 20),
-                        SizedBox(width: 4),
-                        Text("Donate"),
-                      ],
-                    ),
-                  ),
-
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('posts')
-                      .doc(widget.crowdPost.id)
-                      .collection('comments')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    final count =
-                        snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return InkWell(
-                      onTap: () => _showCommentTray(context),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.chat_bubble_outline, size: 20),
-                          const SizedBox(width: 4),
-                          Text(
-                            count == 0
-                                ? "0 comments"
-                                : "View $count comments",
-                            style: TextStyle(
-                                color: Colors.grey[600], fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                _actionItem(
+                  icon: isLiked
+                      ? Icons.favorite
+                      : Icons.favorite_border,
+                  label: "${widget.crowdPost.likes.length}",
+                  color: isLiked ? Colors.red : Colors.grey,
+                  onTap: currentUser == null
+                      ? null
+                      : () => context
+                          .read<CrowdCubit>()
+                          .toggleLike(
+                              widget.crowdPost.id,
+                              currentUser.uid),
                 ),
 
                 if (isDonationPost)
-                  InkWell(
+                  _actionItem(
+                    icon: Icons.volunteer_activism,
+                    label: "Donate",
+                    color: Colors.redAccent,
+                    onTap: () => _showDonationDialog(context),
+                  ),
+
+ StreamBuilder<QuerySnapshot>(
+  stream: FirebaseFirestore.instance
+      .collection('posts')
+      .doc(widget.crowdPost.id)
+      .collection('comments')
+      .snapshots(),
+  builder: (context, snapshot) {
+    final int count =
+        snapshot.hasData ? snapshot.data!.docs.length : 0;
+
+    return _actionItem(
+      icon: Icons.chat_bubble_outline,
+      label: count.toString(),
+      onTap: () => _showCommentTray(context),
+    );
+  },
+),
+
+
+                if (isDonationPost)
+                  _actionItem(
+                    icon: Icons.history,
+                    label: "History",
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => CrowdHistoryPage(
-                            postId: widget.crowdPost.id),
+                        builder: (_) =>
+                            CrowdHistoryPage(postId: widget.crowdPost.id),
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.history, size: 20),
-                        SizedBox(width: 4),
-                        Text("History"),
-                      ],
                     ),
                   ),
               ],
@@ -404,32 +347,45 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
             padding: const EdgeInsets.all(15),
             child: Text(widget.crowdPost.text),
           ),
+
+          Padding(
+            padding: const EdgeInsets.only(left: 15, bottom: 10),
+            child: Text(
+              DateFormat('MMM d, yyyy')
+                  .format(widget.crowdPost.timestamp),
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 12,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  void _confirmDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Delete Post?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () {
-              context
-                  .read<CrowdCubit>()
-                  .deleteCrowd(widget.crowdPost.id);
-              Navigator.pop(context);
-            },
-            child:
-                const Text("Delete", style: TextStyle(color: Colors.red)),
-          ),
-        ],
+  Widget _actionItem({
+    required IconData icon,
+    required String label,
+    Color color = Colors.grey,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -9,6 +9,7 @@ class CrowdPost {
   final DateTime timestamp;
   final double targetAmount;
   final double raisedAmount;
+  final List<String> likes; // ✅ NEW FIELD
 
   CrowdPost({
     required this.id,
@@ -19,9 +20,10 @@ class CrowdPost {
     required this.timestamp,
     required this.targetAmount,
     required this.raisedAmount,
+    required this.likes, // ✅ REQUIRED
   });
 
-  // Convert for Firestore
+  /// Convert to Firestore
   Map<String, dynamic> toJson() => {
         'userId': userId,
         'userName': userName,
@@ -30,9 +32,10 @@ class CrowdPost {
         'timestamp': timestamp,
         'targetAmount': targetAmount,
         'raisedAmount': raisedAmount,
+        'likes': likes, // ✅ SAVE LIKES
       };
 
-  // Read from Firestore
+  /// Read from Firestore
   factory CrowdPost.fromJson(Map<String, dynamic> json, String docId) {
     return CrowdPost(
       id: docId,
@@ -43,6 +46,15 @@ class CrowdPost {
       timestamp: (json['timestamp'] as Timestamp).toDate(),
       targetAmount: (json['targetAmount'] ?? 0).toDouble(),
       raisedAmount: (json['raisedAmount'] ?? 0).toDouble(),
+      likes: List<String>.from(json['likes'] ?? []), // ✅ SAFE READ
     );
   }
+
+  /// Helper: check if user liked post
+  bool isLikedBy(String uid) {
+    return likes.contains(uid);
+  }
+
+  /// Helper: like count
+  int get likeCount => likes.length;
 }

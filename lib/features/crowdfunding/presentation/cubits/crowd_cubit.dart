@@ -34,7 +34,7 @@ class CrowdCubit extends Cubit<CrowdState> {
   // ===============================
   Future<void> createCrowdPost({
     required String text,
-    required Uint8List imageBytes, // ALREADY SAFE (JPG)
+    required Uint8List imageBytes,
     required double target,
     required String uId,
     required String uName,
@@ -47,12 +47,10 @@ class CrowdCubit extends Cubit<CrowdState> {
           .replaceAll('@', '_')
           .replaceAll('.', '_');
 
-      // 🔥 ALWAYS SAVE AS JPG (SAFE FOR ALL PLATFORMS)
       final String filePath =
           "$safeUser/${DateTime.now().millisecondsSinceEpoch}.jpg";
 
-      final imageUrl =
-          await storageRepo.uploadPostImageMobile(
+      final imageUrl = await storageRepo.uploadPostImageMobile(
         imageBytes,
         filePath,
       );
@@ -71,6 +69,7 @@ class CrowdCubit extends Cubit<CrowdState> {
         timestamp: DateTime.now(),
         targetAmount: target,
         raisedAmount: 0,
+        likes: [],
       );
 
       await crowdRepo.createPost(post);
@@ -137,4 +136,50 @@ class CrowdCubit extends Cubit<CrowdState> {
       emit(CrowdError(e.toString()));
     }
   }
+
+  // ===============================
+  // ❤️ LIKE / UNLIKE (OPTIMISTIC — NO RELOAD)
+  // ===============================
+  Future<void> toggleLike(String postId, String userId) async {
+  if (state is! CrowdLoaded) return;
+
+  final currentState = state as CrowdLoaded;
+  final posts = List<CrowdPost>.from(currentState.crowds);
+
+  final index = posts.indexWhere((p) => p.id == postId);
+  if (index == -1) return;
+
+  final post = posts[index];
+  final isLiked = post.likes.contains(userId);
+
+  // ✅ FIX: prepare likes list properly
+  final updatedLikes = List<String>.from(post.likes);
+  if (isLiked) {
+    updatedLikes.remove(userId);
+  } else {
+    updatedLikes.add(userId);
+  }
+
+  final updatedPost = CrowdPost(
+    id: post.id,
+    userId: post.userId,
+    userName: post.userName,
+    text: post.text,
+    imageUrl: post.imageUrl,
+    timestamp: post.timestamp,
+    targetAmount: post.targetAmount,
+    raisedAmount: post.raisedAmount,
+    likes: updatedLikes,
+  );
+
+  posts[index] = updatedPost;
+  emit(CrowdLoaded(posts)); // ✅ no full reload
+
+  // 🔄 Firestore update in background
+  try {
+    await crowdRepo.toggleLikePost(postId, userId);
+  } catch (_) {
+    // optional rollback (ignored)
+  }
+}
 }

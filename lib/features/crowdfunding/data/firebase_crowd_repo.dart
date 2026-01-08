@@ -6,10 +6,14 @@ import 'package:nri_trial1_clean/features/crowdfunding/domain/repos/crowd_repo.d
 class FirebaseCrowdRepo implements CrowdRepo {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // ===============================
+  // 📌 POSTS
+  // ===============================
+
   @override
   Future<List<CrowdPost>> fetchAllPosts() async {
     final snapshot = await _firestore
-        .collection('posts') // ✅ CONSISTENT COLLECTION NAME
+        .collection('posts')
         .orderBy('timestamp', descending: true)
         .get();
 
@@ -28,6 +32,10 @@ class FirebaseCrowdRepo implements CrowdRepo {
     await _firestore.collection('posts').doc(postId).delete();
   }
 
+  // ===============================
+  // 💰 DONATION LOGIC
+  // ===============================
+
   @override
   Future<void> donateToPost(
     String postId,
@@ -35,16 +43,15 @@ class FirebaseCrowdRepo implements CrowdRepo {
     double amount,
   ) async {
     try {
-      // ✅ SAFETY: avoid null donor name
       final safeDonorName =
           donorName.isNotEmpty ? donorName : "Anonymous";
 
-      // 1. Update the raised amount
+      // Update raised amount
       await _firestore.collection('posts').doc(postId).update({
         'raisedAmount': FieldValue.increment(amount),
       });
 
-      // 2. Add donation history
+      // Add donation history
       await _firestore
           .collection('posts')
           .doc(postId)
@@ -60,7 +67,36 @@ class FirebaseCrowdRepo implements CrowdRepo {
   }
 
   // ===============================
-  // 🔽 COMMENT LOGIC (ADDED)
+  // ❤️ LIKE / UNLIKE LOGIC
+  // ===============================
+
+  @override
+  Future<void> toggleLikePost(String postId, String userId) async {
+    try {
+      final postRef = _firestore.collection('posts').doc(postId);
+      final snapshot = await postRef.get();
+
+      final List<dynamic> likes =
+          (snapshot.data()?['likes'] ?? []) as List<dynamic>;
+
+      if (likes.contains(userId)) {
+        // 👎 Unlike
+        await postRef.update({
+          'likes': FieldValue.arrayRemove([userId]),
+        });
+      } else {
+        // 👍 Like
+        await postRef.update({
+          'likes': FieldValue.arrayUnion([userId]),
+        });
+      }
+    } catch (e) {
+      throw Exception("Toggle like failed: $e");
+    }
+  }
+
+  // ===============================
+  // 💬 COMMENT LOGIC
   // ===============================
 
   @override
