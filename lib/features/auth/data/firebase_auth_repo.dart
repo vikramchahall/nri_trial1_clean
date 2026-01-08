@@ -36,6 +36,8 @@ class FirebaseAuthRepo implements AuthRepo {
         phoneNumber: data['phoneNumber'] ?? '',
         city: data['city'] ?? '',
         town: data['town'] ?? '',
+        panchayatId: data['panchayatId'] ?? '',
+        blockName: data['blockName'] ?? '',
         isPhoneVerified: data['isPhoneVerified'] ?? false,
         isAdmin: data['isAdmin'] ?? false,
         followers: List<String>.from(data['followers'] ?? []),
@@ -46,16 +48,14 @@ class FirebaseAuthRepo implements AuthRepo {
     }
   }
 
-  // ================= SEND OTP =================
+  // ================= SEND OTP (LEGACY) =================
   @override
   Future<dynamic> sendOtp(String mobile) async {
     final String fullNumber = "+91$mobile";
 
     if (kIsWeb) {
-      // WEB → Recaptcha flow
       return await _auth.signInWithPhoneNumber(fullNumber);
     } else {
-      // ANDROID / iOS → Native OTP
       final completer = Completer<String>();
 
       await _auth.verifyPhoneNumber(
@@ -76,7 +76,7 @@ class FirebaseAuthRepo implements AuthRepo {
     }
   }
 
-  // ================= VERIFIED SARPANCH =================
+  // ================= VERIFIED SARPANCH (OTP - LEGACY) =================
   @override
   Future<AppUser?> registerVerifiedSarpanch({
     required String email,
@@ -91,20 +91,26 @@ class FirebaseAuthRepo implements AuthRepo {
   }) async {
     try {
       final normalizedUsername = username.trim().toLowerCase();
+      final normalizedEmail = email.trim().toLowerCase();
 
-      // USERNAME CHECK
       final usernameCheck = await _firestore
           .collection('users')
           .where('username', isEqualTo: normalizedUsername)
           .get();
 
       if (usernameCheck.docs.isNotEmpty) {
-        throw Exception(
-          "The username '$username' is already taken.",
-        );
+        throw Exception("Username '@$normalizedUsername' is already taken.");
       }
 
-      // OTP VERIFICATION
+      final emailCheck = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: normalizedEmail)
+          .get();
+
+      if (emailCheck.docs.isNotEmpty) {
+        throw Exception("This email is already registered.");
+      }
+
       if (kIsWeb) {
         await webResult.confirm(otpCode);
       } else {
@@ -115,15 +121,14 @@ class FirebaseAuthRepo implements AuthRepo {
         await _auth.currentUser?.linkWithCredential(credential);
       }
 
-      // CREATE ACCOUNT
       final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
+        email: normalizedEmail,
         password: password,
       );
 
       final user = AppUser(
         uid: userCredential.user!.uid,
-        email: email,
+        email: normalizedEmail,
         username: normalizedUsername,
         userType: 'Sarpanch',
         phoneNumber: phoneNumber,
@@ -151,6 +156,7 @@ class FirebaseAuthRepo implements AuthRepo {
   }) async {
     try {
       final normalizedUsername = username.trim().toLowerCase();
+      final normalizedEmail = email.trim().toLowerCase();
 
       final usernameCheck = await _firestore
           .collection('users')
@@ -158,21 +164,91 @@ class FirebaseAuthRepo implements AuthRepo {
           .get();
 
       if (usernameCheck.docs.isNotEmpty) {
-        throw Exception(
-          "The username '$username' is already taken.",
-        );
+        throw Exception("Username '@$normalizedUsername' is already taken.");
+      }
+
+      final emailCheck = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: normalizedEmail)
+          .get();
+
+      if (emailCheck.docs.isNotEmpty) {
+        throw Exception("This email is already registered.");
       }
 
       final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
+        email: normalizedEmail,
         password: password,
       );
 
       final user = AppUser(
         uid: userCredential.user!.uid,
-        email: email,
+        email: normalizedEmail,
         username: normalizedUsername,
         userType: 'Supporter',
+        isAdmin: false,
+        followers: [],
+        following: [],
+      );
+
+      await _firestore.collection('users').doc(user.uid).set(user.toJson());
+      return user;
+    } catch (e) {
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  // ================= REGISTER WITHOUT OTP (NEW - FINAL FIX) =================
+  @override
+  Future<AppUser?> registerWithoutOtp({
+    required String email,
+    required String password,
+    required String username,
+    required String phoneNumber,
+    required String city,
+    required String town,
+    required String blockName,
+    required String panchayatId,
+    required String userType,
+  }) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      final normalizedUsername = username.trim().toLowerCase();
+
+      final usernameCheck = await _firestore
+          .collection('users')
+          .where('username', isEqualTo: normalizedUsername)
+          .get();
+
+      if (usernameCheck.docs.isNotEmpty) {
+        throw Exception("Username '@$normalizedUsername' is already taken.");
+      }
+
+      final emailCheck = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: normalizedEmail)
+          .get();
+
+      if (emailCheck.docs.isNotEmpty) {
+        throw Exception("This email is already registered.");
+      }
+
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: normalizedEmail,
+        password: password,
+      );
+
+      final user = AppUser(
+        uid: userCredential.user!.uid,
+        email: normalizedEmail,
+        username: normalizedUsername,
+        userType: userType,
+        phoneNumber: phoneNumber,
+        city: city,
+        town: town,
+        blockName: blockName,
+        panchayatId: panchayatId,
+        isPhoneVerified: false, // ❌ OTP DISABLED
         isAdmin: false,
         followers: [],
         following: [],
@@ -212,6 +288,8 @@ class FirebaseAuthRepo implements AuthRepo {
       phoneNumber: data['phoneNumber'] ?? '',
       city: data['city'] ?? '',
       town: data['town'] ?? '',
+      panchayatId: data['panchayatId'] ?? '',
+      blockName: data['blockName'] ?? '',
       isPhoneVerified: data['isPhoneVerified'] ?? false,
       isAdmin: data['isAdmin'] ?? false,
       followers: List<String>.from(data['followers'] ?? []),

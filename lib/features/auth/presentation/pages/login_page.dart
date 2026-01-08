@@ -28,65 +28,79 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 25.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // 🟢 PUNJAB GOVERNMENT LOGO
- Image.asset(
-  'assets/logo.png', 
-  height: 150,       
-  fit: BoxFit.contain,
-),
+      resizeToAvoidBottomInset: true, // ✅ IMPORTANT
+      body: SafeArea(
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(), // dismiss keyboard
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 25.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 60), // spacing from top
 
-              const SizedBox(height: 25),
-
-              const Text(
-                "N R I  C O N N E C T",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                // 🟢 PUNJAB GOVERNMENT LOGO
+                Image.asset(
+                  'assets/logo.png',
+                  height: 150,
+                  fit: BoxFit.contain,
                 ),
-              ),
 
-              const SizedBox(height: 25),
+                const SizedBox(height: 25),
 
-              MyTextField(
-                controller: emailController,
-                hintText: "Email",
-                obscureText: false,
-              ),
-
-              const SizedBox(height: 10),
-
-              MyTextField(
-                controller: pwController,
-                hintText: "Password",
-                obscureText: true,
-              ),
-
-              const SizedBox(height: 25),
-
-              MyButton(
-                onTap: login,
-                text: "Login",
-              ),
-
-              const SizedBox(height: 25),
-
-              GestureDetector(
-                onTap: widget.onTap,
-                child: const Text(
-                  "Not a member? Register now",
+                const Text(
+                  "N R I  C O N N E C T",
                   style: TextStyle(
-                    color: Colors.blue,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 25),
+
+                MyTextField(
+                  controller: emailController,
+                  hintText: "Email",
+                  obscureText: false,
+                ),
+
+                const SizedBox(height: 10),
+
+                MyTextField(
+                  controller: pwController,
+                  hintText: "Password",
+                  obscureText: true,
+                ),
+
+                const SizedBox(height: 25),
+
+                // 🔼 Button moves up when keyboard opens
+                Padding(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).viewInsets.bottom,
+                  ),
+                  child: MyButton(
+                    onTap: login,
+                    text: "Login",
+                  ),
+                ),
+
+                const SizedBox(height: 25),
+
+                GestureDetector(
+                  onTap: widget.onTap,
+                  child: const Text(
+                    "Not a member? Register now",
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+              ],
+            ),
           ),
         ),
       ),

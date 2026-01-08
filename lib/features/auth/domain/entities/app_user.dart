@@ -11,6 +11,10 @@ class AppUser {
   final String city;
   final String town;
 
+  // NEW LOCATION FIELDS
+  final String panchayatId; // NEW
+  final String blockName;   // NEW
+
   // OTP + ADMIN STATE
   final bool isPhoneVerified;
   final bool isAdmin;
@@ -27,6 +31,8 @@ class AppUser {
     this.phoneNumber = '',
     this.city = '',
     this.town = '',
+    this.panchayatId = '', // NEW
+    this.blockName = '',   // NEW
     this.isPhoneVerified = false,
     this.isAdmin = false,
     this.followers = const [],
@@ -41,6 +47,8 @@ class AppUser {
         'phoneNumber': phoneNumber,
         'city': city,
         'town': town,
+        'panchayatId': panchayatId, // NEW
+        'blockName': blockName,     // NEW
         'isPhoneVerified': isPhoneVerified,
         'isAdmin': isAdmin,
         'followers': followers,
@@ -56,6 +64,8 @@ class AppUser {
       phoneNumber: json['phoneNumber'] ?? '',
       city: json['city'] ?? '',
       town: json['town'] ?? '',
+      panchayatId: json['panchayatId'] ?? '', // NEW
+      blockName: json['blockName'] ?? '',     // NEW
       isPhoneVerified: json['isPhoneVerified'] ?? false,
       isAdmin: json['isAdmin'] ?? false,
       followers: List<String>.from(json['followers'] ?? []),

@@ -36,6 +36,19 @@ abstract class AuthRepo {
     required String username,
   });
 
+  // ================= REGISTER WITHOUT OTP (NEW - DO NOT REMOVE) =================
+  Future<AppUser?> registerWithoutOtp({
+    required String email,
+    required String password,
+    required String username,
+    required String phoneNumber,
+    required String city,
+    required String town,
+    required String blockName,
+    required String panchayatId,
+    required String userType, // "Sarpanch" or "Supporter"
+  });
+
   // ================= SESSION =================
   Future<void> logout();
   Future<AppUser?> getCurrentUser();

@@ -26,6 +26,7 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> login(String email, String password) async {
     try {
       emit(AuthLoading());
+
       final user =
           await authRepo.loginWithEmailPassword(email, password);
 
@@ -64,7 +65,43 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  // ================= VERIFIED SARPANCH REGISTER (OTP) =================
+  // ================= REGISTER WITHOUT OTP =================
+  Future<void> registerWithoutOtp({
+    required String email,
+    required String password,
+    required String username,
+    required String phone,
+    required String city,
+    required String town,
+    required String blockName,
+    required String panchayatId,
+    required String userType, // "Sarpanch" or "Supporter"
+  }) async {
+    try {
+      emit(AuthLoading());
+
+      final user = await authRepo.registerWithoutOtp(
+        email: email,
+        password: password,
+        username: username,
+        phoneNumber: phone,
+        city: city,
+        town: town,
+        blockName: blockName,
+        panchayatId: panchayatId,
+        userType: userType,
+      );
+
+      if (user != null) {
+        _currentUser = user;
+        emit(Authenticated(user));
+      }
+    } catch (e) {
+      emit(AuthError(e.toString()));
+    }
+  }
+
+  // ================= VERIFIED SARPANCH REGISTER (OTP - LEGACY) =================
   Future<void> registerSarpanchVerified({
     required String email,
     required String password,
