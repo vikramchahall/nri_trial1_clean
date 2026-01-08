@@ -5,6 +5,7 @@ import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../domain/entities/crowd_post.dart';
+import '../../domain/entities/comment.dart';
 import '../cubits/crowd_cubit.dart';
 import '../pages/crowd_history_page.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
@@ -22,6 +23,8 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
   late Razorpay _razorpay;
   double _lastAmount = 0;
 
+  final commentController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +36,153 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
     }
   }
 
+  // =========================
+  // 💬 COMMENT TRAY
+  // =========================
+  void _showCommentTray(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              height: 5,
+              width: 40,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const Text(
+              "Comments",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const Divider(),
+
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('posts')
+                    .doc(widget.crowdPost.id)
+                    .collection('comments')
+                    .orderBy('timestamp', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final comments = snapshot.data!.docs;
+                  if (comments.isEmpty) {
+                    return const Center(child: Text("No comments yet."));
+                  }
+
+                  final currentUser =
+                      context.read<AuthCubit>().currentUser;
+
+                  return ListView.builder(
+                    controller: scrollController,
+                    itemCount: comments.length,
+                    itemBuilder: (context, index) {
+                      final data =
+                          comments[index].data() as Map<String, dynamic>;
+                      final commentId = comments[index].id;
+
+                      final bool canDelete =
+                          (currentUser != null &&
+                              (currentUser.uid == data['userId'] ||
+                                  currentUser.uid ==
+                                      widget.crowdPost.userId));
+
+                      return ListTile(
+                        leading: const CircleAvatar(
+                          radius: 15,
+                          child: Icon(Icons.person, size: 15),
+                        ),
+                        title: Text(
+                          "@${data['userName']}",
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        subtitle: Text(data['text']),
+                        trailing: canDelete
+                            ? IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    size: 18),
+                                onPressed: () => context
+                                    .read<CrowdCubit>()
+                                    .deleteComment(
+                                        widget.crowdPost.id, commentId),
+                              )
+                            : null,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 15,
+                right: 15,
+                top: 10,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: commentController,
+                      decoration: const InputDecoration(
+                        hintText: "Add a comment...",
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.send, color: Colors.green),
+                    onPressed: _addComment,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addComment() {
+    final user = context.read<AuthCubit>().currentUser;
+    if (user == null || commentController.text.isEmpty) return;
+
+    final newComment = Comment(
+      id: '',
+      postId: widget.crowdPost.id,
+      userId: user.uid,
+      userName: user.username,
+      text: commentController.text,
+      timestamp: DateTime.now(),
+    );
+
+    context.read<CrowdCubit>().addComment(widget.crowdPost.id, newComment);
+    commentController.clear();
+  }
+
+  // =========================
+  // 💳 PAYMENT LOGIC
+  // =========================
   void _handleMobileSuccess(PaymentSuccessResponse response) {
     _onPaymentSuccess();
   }
@@ -94,20 +244,20 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
 
   @override
   void dispose() {
-    if (!kIsWeb) {
-      _razorpay.clear();
-    }
+    commentController.dispose();
+    if (!kIsWeb) _razorpay.clear();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = context.read<AuthCubit>().currentUser;
+    final currentUser = context.read<AuthCubit>().currentUser;
 
-    final bool canDelete =
-        (user != null && user.isAdmin && user.uid == widget.crowdPost.userId);
+    final bool canDeletePost =
+        (currentUser != null &&
+            currentUser.isAdmin &&
+            currentUser.uid == widget.crowdPost.userId);
 
-    // 🔥 CORE LOGIC
     final bool isDonationPost = widget.crowdPost.targetAmount > 0;
 
     final double progress = isDonationPost
@@ -127,37 +277,12 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 👤 HEADER
           ListTile(
-            leading: FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(widget.crowdPost.userId)
-                  .get(),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data!.exists) {
-                  final data =
-                      snapshot.data!.data() as Map<String, dynamic>;
-                  final String? url = data['profileImageUrl'];
-
-                  return CircleAvatar(
-                    backgroundImage:
-                        (url != null && url.isNotEmpty)
-                            ? NetworkImage(url)
-                            : null,
-                    child: (url == null || url.isEmpty)
-                        ? const Icon(Icons.person)
-                        : null,
-                  );
-                }
-                return const CircleAvatar(child: Icon(Icons.person));
-              },
-            ),
             title: Text(
               "@${widget.crowdPost.userName}",
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            trailing: canDelete
+            trailing: canDeletePost
                 ? IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () => _confirmDelete(context),
@@ -165,32 +290,29 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                 : null,
           ),
 
-          // 🖼 IMAGE
           AspectRatio(
-            aspectRatio: 1 / 1,
+            aspectRatio: 1,
             child: Image.network(
               widget.crowdPost.imageUrl,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) =>
-                  const Center(child: Icon(Icons.broken_image)),
+                  const Icon(Icons.broken_image, size: 40),
             ),
           ),
 
-          // 💰 PROGRESS (ONLY FOR DONATION POSTS)
           if (isDonationPost)
             Padding(
-              padding: const EdgeInsets.all(15.0),
+              padding: const EdgeInsets.all(15),
               child: Column(
                 children: [
                   LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
+                    value: progress.clamp(0, 1),
                     color: Colors.green,
                     minHeight: 12,
                   ),
                   const SizedBox(height: 10),
                   Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         "Raised: ₹${widget.crowdPost.raisedAmount}",
@@ -198,43 +320,88 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                             fontWeight: FontWeight.bold,
                             color: Colors.green),
                       ),
-                      Text(
-                          "Goal: ₹${widget.crowdPost.targetAmount}"),
+                      Text("Goal: ₹${widget.crowdPost.targetAmount}"),
                     ],
                   ),
                 ],
               ),
             ),
 
-          // 🔘 ACTION ROW
-          Row(
-            children: [
-              if (isDonationPost) ...[
-                IconButton(
-                  onPressed: () => _showDonationDialog(context),
-                  icon: const Icon(Icons.volunteer_activism,
-                      color: Colors.redAccent),
-                ),
-                const Text("Donate"),
-                const SizedBox(width: 20),
-              ],
-              IconButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => CrowdHistoryPage(
-                        postId: widget.crowdPost.id),
+          // 🔘 ACTION ROW (FIXED)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (isDonationPost)
+                  InkWell(
+                    onTap: () => _showDonationDialog(context),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.volunteer_activism,
+                            color: Colors.redAccent, size: 20),
+                        SizedBox(width: 4),
+                        Text("Donate"),
+                      ],
+                    ),
                   ),
+
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('posts')
+                      .doc(widget.crowdPost.id)
+                      .collection('comments')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final count =
+                        snapshot.hasData ? snapshot.data!.docs.length : 0;
+                    return InkWell(
+                      onTap: () => _showCommentTray(context),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.chat_bubble_outline, size: 20),
+                          const SizedBox(width: 4),
+                          Text(
+                            count == 0
+                                ? "0 comments"
+                                : "View $count comments",
+                            style: TextStyle(
+                                color: Colors.grey[600], fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-                icon: const Icon(Icons.history),
-              ),
-              const Text("History"),
-            ],
+
+                if (isDonationPost)
+                  InkWell(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CrowdHistoryPage(
+                            postId: widget.crowdPost.id),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.history, size: 20),
+                        SizedBox(width: 4),
+                        Text("History"),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
 
-          // 📝 CAPTION
           Padding(
-            padding: const EdgeInsets.all(15.0),
+            padding: const EdgeInsets.all(15),
             child: Text(widget.crowdPost.text),
           ),
         ],
