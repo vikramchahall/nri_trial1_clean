@@ -1,55 +1,32 @@
 import '../entities/app_user.dart';
 
 abstract class AuthRepo {
-  // ================= LOGIN =================
-  Future<AppUser?> loginWithEmailPassword(
-    String email,
-    String password,
-  );
+  // LOGIN
+  Future<AppUser?> loginWithEmailPassword(String email, String password);
 
-  // ================= OTP (PLATFORM AWARE) =================
-  /// Web  → returns ConfirmationResult
-  /// Mobile → returns verificationId (String)
-  Future<dynamic> sendOtp(String mobile);
-
-  // ================= VERIFIED SARPANCH REGISTRATION =================
-  Future<AppUser?> registerVerifiedSarpanch({
+  // REGISTER
+  Future<AppUser?> registerUser({
     required String email,
     required String password,
     required String username,
-    required String phoneNumber,
-    required String city,
-    required String town,
-    required String otpCode,
-
-    /// Web-only
-    dynamic webResult,
-
-    /// Android / iOS-only
-    String? verificationId,
+    required String userType,
+    required String phone,
+    String city,
+    String town,
+    String block,
+    String panchayatId,
   });
 
-  // ================= SIMPLE REGISTRATION (SUPPORTER) =================
-  Future<AppUser?> registerSimple({
-    required String email,
-    required String password,
-    required String username,
-  });
+  // EMAIL VERIFICATION (NEW)
+  Future<void> sendEmailVerification();
+  Future<bool> checkEmailVerified();
 
-  // ================= REGISTER WITHOUT OTP (NEW - DO NOT REMOVE) =================
-  Future<AppUser?> registerWithoutOtp({
-    required String email,
-    required String password,
-    required String username,
-    required String phoneNumber,
-    required String city,
-    required String town,
-    required String blockName,
-    required String panchayatId,
-    required String userType, // "Sarpanch" or "Supporter"
-  });
-
-  // ================= SESSION =================
-  Future<void> logout();
+  // CURRENT USER
   Future<AppUser?> getCurrentUser();
+
+  // PASSWORD RESET
+  Future<void> sendPasswordResetEmail(String email);
+
+  // LOGOUT
+  Future<void> logout();
 }

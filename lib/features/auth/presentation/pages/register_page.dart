@@ -6,6 +6,10 @@ import '../cubits/auth_states.dart';
 import '../../../../components/my_button.dart';
 import '../../../../components/my_text_field.dart';
 
+// 🔹 LANGUAGE
+import 'package:nri_trial1_clean/features/auth/presentation/cubits/language_cubit.dart';
+
+
 class RegisterPage extends StatefulWidget {
   final void Function()? onTap;
   const RegisterPage({super.key, required this.onTap});
@@ -26,73 +30,83 @@ class _RegisterPageState extends State<RegisterPage> {
   final blockController = TextEditingController();
   final panchayatIdController = TextEditingController();
 
-  // ================= STATE =================
-  String selectedUserType = 'Sarpanch';
-
-  @override
-  void dispose() {
-    emailController.dispose();
-    pwController.dispose();
-    confirmPwController.dispose();
-    usernameController.dispose();
-    phoneController.dispose();
-    cityController.dispose();
-    townController.dispose();
-    blockController.dispose();
-    panchayatIdController.dispose();
-    super.dispose();
-  }
+  String selectedUserType = 'Pind';
 
   // ================= REGISTER =================
-  void onRegisterTapped() {
-    final pw = pwController.text;
-    final cpw = confirmPwController.text;
-
-    if (pw != cpw) {
-      _showError("Passwords do not match!");
-      return;
-    }
-
+  void register() {
     if (usernameController.text.isEmpty ||
         emailController.text.isEmpty ||
-        pw.isEmpty) {
-      _showError("Please fill all basic details");
+        phoneController.text.isEmpty ||
+        pwController.text.isEmpty) {
+      _showError("Please fill all details");
       return;
     }
 
-    if (selectedUserType == 'Sarpanch') {
-      if (phoneController.text.isEmpty ||
-          panchayatIdController.text.isEmpty) {
-        _showError("Phone and Panchayat ID are mandatory for Sarpanch");
-        return;
-      }
+    if (pwController.text != confirmPwController.text) {
+      _showError("Passwords do not match");
+      return;
     }
 
-    // 🔥 SINGLE REGISTRATION CALL
-    context.read<AuthCubit>().registerWithoutOtp(
-          email: emailController.text,
-          password: pw,
-          username: usernameController.text,
-          phone: phoneController.text,
-          city: cityController.text,
-          town: townController.text,
-          blockName: blockController.text,
-          panchayatId: panchayatIdController.text,
+    context.read<AuthCubit>().registerUser(
+          email: emailController.text.trim(),
+          password: pwController.text,
+          username: usernameController.text.trim(),
+          phone: phoneController.text.trim(),
           userType: selectedUserType,
+          city: cityController.text.trim(),
+          town: townController.text.trim(),
+          block: blockController.text.trim(),
+          panchayatId: panchayatIdController.text.trim(),
         );
   }
 
+  // ================= ERROR HANDLER =================
   void _showError(String msg) {
-    final cleanMsg = msg.replaceAll("Exception: ", "");
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(cleanMsg),
+        content: Text(msg.replaceAll("Exception: ", "")),
         backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
+  // ================= LANGUAGE DIALOG =================
+  void _showLanguageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Select Language / भाषा चुनें"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text("English"),
+              onTap: () {
+                context.read<LanguageCubit>().changeLanguage(AppLanguage.english);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text("हिंदी"),
+              onTap: () {
+                context.read<LanguageCubit>().changeLanguage(AppLanguage.hindi);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text("ਪੰਜਾਬੀ"),
+              onTap: () {
+                context.read<LanguageCubit>().changeLanguage(AppLanguage.punjabi);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
@@ -102,40 +116,54 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       },
       child: Scaffold(
+        // ✅ FLOATING LANGUAGE BUTTON
+        floatingActionButton: FloatingActionButton(
+          mini: true,
+          backgroundColor: Colors.white,
+          onPressed: () => _showLanguageDialog(context),
+          child: const Icon(Icons.translate, color: Colors.green),
+        ),
         body: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(25),
             child: Column(
               children: [
-                const Icon(Icons.account_balance,
-                    size: 60, color: Colors.green),
+                const Icon(
+                  Icons.account_balance,
+                  size: 60,
+                  color: Colors.green,
+                ),
                 const SizedBox(height: 20),
+
                 const Text(
                   "CREATE ACCOUNT",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
                 const SizedBox(height: 25),
 
                 ToggleButtons(
                   isSelected: [
-                    selectedUserType == 'Sarpanch',
-                    selectedUserType == 'Supporter'
+                    selectedUserType == 'Pind',
+                    selectedUserType == 'User'
                   ],
                   onPressed: (index) {
                     setState(() {
                       selectedUserType =
-                          index == 0 ? 'Sarpanch' : 'Supporter';
+                          index == 0 ? 'Pind' : 'User';
                     });
                   },
                   borderRadius: BorderRadius.circular(10),
                   children: const [
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 20),
-                      child: Text("Sarpanch"),
+                      child: Text("Pind"),
                     ),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 20),
-                      child: Text("Supporter"),
+                      child: Text("User"),
                     ),
                   ],
                 ),
@@ -156,8 +184,15 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 10),
 
                 MyTextField(
+                  controller: phoneController,
+                  hintText: "Phone Number",
+                  obscureText: false,
+                ),
+                const SizedBox(height: 10),
+
+                MyTextField(
                   controller: pwController,
-                  hintText: "Create Password",
+                  hintText: "Password",
                   obscureText: true,
                 ),
                 const SizedBox(height: 10),
@@ -168,13 +203,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   obscureText: true,
                 ),
 
-                if (selectedUserType == 'Sarpanch') ...[
-                  const SizedBox(height: 10),
-                  MyTextField(
-                    controller: phoneController,
-                    hintText: "Phone Number",
-                    obscureText: false,
-                  ),
+                if (selectedUserType == 'Pind') ...[
                   const SizedBox(height: 10),
                   MyTextField(
                     controller: panchayatIdController,
@@ -190,27 +219,38 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 10),
                   MyTextField(
                     controller: cityController,
-                    hintText: "City / District",
+                    hintText: "City",
                     obscureText: false,
                   ),
                   const SizedBox(height: 10),
                   MyTextField(
                     controller: townController,
-                    hintText: "Village Name",
+                    hintText: "Town / Village",
                     obscureText: false,
                   ),
                 ],
 
                 const SizedBox(height: 25),
                 MyButton(
-                  onTap: onRegisterTapped,
+                  onTap: register,
                   text: "Register",
+                ),
+
+                const SizedBox(height: 10),
+                const Text(
+                  "After registering, verify your email to continue.\n"
+                  "Check Spam or Promotions if needed.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
                 ),
 
                 const SizedBox(height: 20),
                 GestureDetector(
                   onTap: widget.onTap,
-                  child: const Text("Already a member? Login"),
+                  child: const Text("Back to Login"),
                 ),
               ],
             ),

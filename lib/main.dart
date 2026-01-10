@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 // 🔹 AUTH
@@ -8,6 +9,10 @@ import 'features/auth/data/firebase_auth_repo.dart';
 import 'features/auth/presentation/cubits/auth_cubit.dart';
 import 'features/auth/presentation/cubits/auth_states.dart';
 import 'features/auth/presentation/pages/auth_page.dart';
+import 'features/auth/presentation/pages/verification_page.dart';
+
+// 🔹 LANGUAGE
+import 'features/auth/presentation/cubits/language_cubit.dart';
 
 // 🔹 CROWDFUNDING
 import 'features/crowdfunding/data/firebase_crowd_repo.dart';
@@ -29,12 +34,10 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Firebase init
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // ✅ Supabase init
   await supabase.Supabase.initialize(
     url: 'https://chpmwhtzivhcttwpjqwc.supabase.co',
     anonKey:
@@ -49,7 +52,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CREATE REPO SINGLETONS
     final authRepo = FirebaseAuthRepo();
     final crowdRepo = FirebaseCrowdRepo();
     final profileRepo = FirebaseProfileRepo();
@@ -57,20 +59,14 @@ class MyApp extends StatelessWidget {
 
     return MultiBlocProvider(
       providers: [
-        // 🔹 AUTH
-        BlocProvider(
-          create: (_) => AuthCubit(authRepo: authRepo)..checkAuth(),
-        ),
-
-        // 🔹 CROWDFUNDING
+        BlocProvider(create: (_) => LanguageCubit()),
+        BlocProvider(create: (_) => AuthCubit(authRepo: authRepo)..checkAuth()),
         BlocProvider(
           create: (_) => CrowdCubit(
             crowdRepo: crowdRepo,
             storageRepo: storageRepo,
           ),
         ),
-
-        // 🔹 PROFILE
         BlocProvider(
           create: (_) => ProfileCubit(
             profileRepo: profileRepo,
@@ -78,28 +74,77 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
-          useMaterial3: true,
-        ),
-        home: BlocBuilder<AuthCubit, AuthState>(
-          builder: (context, state) {
-            if (state is Authenticated) {
-              return const HomePage();
-            }
+      child: BlocBuilder<LanguageCubit, AppLanguage>(
+        builder: (context, language) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
 
-            if (state is AuthLoading) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
+            // 🌐 LANGUAGE CONTROL
+            locale: _mapLanguageToLocale(language),
 
-            return const AuthPage();
-          },
-        ),
+            supportedLocales: const [
+              Locale('en'),
+              Locale('hi'),
+              Locale('pa'),
+            ],
+
+            // ✅ THIS FIXES ALL ERRORS
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+              useMaterial3: true,
+            ),
+
+            home: BlocConsumer<AuthCubit, AuthState>(
+              listener: (context, state) {
+                if (state is AuthError) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.message),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              builder: (context, state) {
+                if (state is Authenticated) {
+                  return const HomePage();
+                }
+
+                if (state is NeedVerification) {
+                  return VerificationPage(email: state.email);
+                }
+
+                if (state is AuthLoading) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                return const AuthPage();
+              },
+            ),
+          );
+        },
       ),
     );
+  }
+}
+
+// ================= LANGUAGE → LOCALE MAPPER =================
+Locale _mapLanguageToLocale(AppLanguage language) {
+  switch (language) {
+    case AppLanguage.hindi:
+      return const Locale('hi');
+    case AppLanguage.punjabi:
+      return const Locale('pa');
+    case AppLanguage.english:
+    default:
+      return const Locale('en');
   }
 }

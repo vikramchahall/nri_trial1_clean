@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -10,261 +8,151 @@ class FirebaseAuthRepo implements AuthRepo {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // ================= EMAIL VERIFICATION =================
+  @override
+  Future<void> sendEmailVerification() async {
+    await _auth.currentUser?.sendEmailVerification();
+  }
+
+  @override
+  Future<bool> checkEmailVerified() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      await user.reload(); // THIS LINE IS MANDATORY
+      return _auth.currentUser?.emailVerified ?? false;
+    }
+    return false;
+  }
   // ================= LOGIN =================
   @override
-  Future<AppUser?> loginWithEmailPassword(String email, String password) async {
+  Future<AppUser?> loginWithEmailPassword(
+    String email,
+    String password,
+  ) async {
     try {
       final userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
+        email: email.trim(),
         password: password,
       );
 
+      final firebaseUser = userCredential.user;
+      if (firebaseUser == null) return null;
+
+      // 🔥 FORCE REFRESH
+      await firebaseUser.reload();
+      final refreshedUser = _auth.currentUser;
+
+      // 🚫 BLOCK IF EMAIL NOT VERIFIED
+      if (refreshedUser == null || !refreshedUser.emailVerified) {
+        await refreshedUser?.sendEmailVerification();
+        throw Exception(
+          "Email not verified. Please check your inbox or spam folder.",
+        );
+      }
+
       final userDoc = await _firestore
           .collection('users')
-          .doc(userCredential.user!.uid)
+          .doc(refreshedUser.uid)
           .get();
 
-      if (!userDoc.exists) return null;
+      if (!userDoc.exists) {
+        await _auth.signOut();
+        return null;
+      }
 
       final data = userDoc.data() as Map<String, dynamic>;
 
       return AppUser(
-        uid: userCredential.user!.uid,
-        email: email,
+        uid: refreshedUser.uid,
+        email: refreshedUser.email!,
         username: data['username'] ?? '',
         userType: data['userType'] ?? 'Supporter',
         phoneNumber: data['phoneNumber'] ?? '',
         city: data['city'] ?? '',
         town: data['town'] ?? '',
-        panchayatId: data['panchayatId'] ?? '',
         blockName: data['blockName'] ?? '',
-        isPhoneVerified: data['isPhoneVerified'] ?? false,
+        panchayatId: data['panchayatId'] ?? '',
         isAdmin: data['isAdmin'] ?? false,
         followers: List<String>.from(data['followers'] ?? []),
         following: List<String>.from(data['following'] ?? []),
       );
     } catch (e) {
-      throw Exception('Login failed: $e');
+      throw Exception(e.toString());
     }
   }
 
-  // ================= SEND OTP (LEGACY) =================
+  // ================= PASSWORD RESET =================
   @override
-  Future<dynamic> sendOtp(String mobile) async {
-    final String fullNumber = "+91$mobile";
-
-    if (kIsWeb) {
-      return await _auth.signInWithPhoneNumber(fullNumber);
-    } else {
-      final completer = Completer<String>();
-
-      await _auth.verifyPhoneNumber(
-        phoneNumber: fullNumber,
-        verificationCompleted: (PhoneAuthCredential credential) {},
-        verificationFailed: (FirebaseAuthException e) {
-          completer.completeError(
-            e.message ?? "OTP verification failed",
-          );
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          completer.complete(verificationId);
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {},
-      );
-
-      return completer.future;
-    }
-  }
-
-  // ================= VERIFIED SARPANCH (OTP - LEGACY) =================
-  @override
-  Future<AppUser?> registerVerifiedSarpanch({
-    required String email,
-    required String password,
-    required String username,
-    required String phoneNumber,
-    required String city,
-    required String town,
-    required String otpCode,
-    dynamic webResult,
-    String? verificationId,
-  }) async {
+  Future<void> sendPasswordResetEmail(String email) async {
     try {
-      final normalizedUsername = username.trim().toLowerCase();
-      final normalizedEmail = email.trim().toLowerCase();
-
-      final usernameCheck = await _firestore
-          .collection('users')
-          .where('username', isEqualTo: normalizedUsername)
-          .get();
-
-      if (usernameCheck.docs.isNotEmpty) {
-        throw Exception("Username '@$normalizedUsername' is already taken.");
-      }
-
-      final emailCheck = await _firestore
-          .collection('users')
-          .where('email', isEqualTo: normalizedEmail)
-          .get();
-
-      if (emailCheck.docs.isNotEmpty) {
-        throw Exception("This email is already registered.");
-      }
-
-      if (kIsWeb) {
-        await webResult.confirm(otpCode);
-      } else {
-        final credential = PhoneAuthProvider.credential(
-          verificationId: verificationId!,
-          smsCode: otpCode,
-        );
-        await _auth.currentUser?.linkWithCredential(credential);
-      }
-
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: normalizedEmail,
-        password: password,
-      );
-
-      final user = AppUser(
-        uid: userCredential.user!.uid,
-        email: normalizedEmail,
-        username: normalizedUsername,
-        userType: 'Sarpanch',
-        phoneNumber: phoneNumber,
-        city: city,
-        town: town,
-        isPhoneVerified: true,
-        isAdmin: false,
-        followers: [],
-        following: [],
-      );
-
-      await _firestore.collection('users').doc(user.uid).set(user.toJson());
-      return user;
+      await _auth.sendPasswordResetEmail(email: email.trim());
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw Exception("Reset error: ${e.toString()}");
     }
   }
 
-  // ================= SIMPLE SUPPORTER =================
+  // ================= REGISTER =================
   @override
-  Future<AppUser?> registerSimple({
+  Future<AppUser?> registerUser({
     required String email,
     required String password,
     required String username,
-  }) async {
-    try {
-      final normalizedUsername = username.trim().toLowerCase();
-      final normalizedEmail = email.trim().toLowerCase();
-
-      final usernameCheck = await _firestore
-          .collection('users')
-          .where('username', isEqualTo: normalizedUsername)
-          .get();
-
-      if (usernameCheck.docs.isNotEmpty) {
-        throw Exception("Username '@$normalizedUsername' is already taken.");
-      }
-
-      final emailCheck = await _firestore
-          .collection('users')
-          .where('email', isEqualTo: normalizedEmail)
-          .get();
-
-      if (emailCheck.docs.isNotEmpty) {
-        throw Exception("This email is already registered.");
-      }
-
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: normalizedEmail,
-        password: password,
-      );
-
-      final user = AppUser(
-        uid: userCredential.user!.uid,
-        email: normalizedEmail,
-        username: normalizedUsername,
-        userType: 'Supporter',
-        isAdmin: false,
-        followers: [],
-        following: [],
-      );
-
-      await _firestore.collection('users').doc(user.uid).set(user.toJson());
-      return user;
-    } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
-    }
-  }
-
-  // ================= REGISTER WITHOUT OTP (NEW - FINAL FIX) =================
-  @override
-  Future<AppUser?> registerWithoutOtp({
-    required String email,
-    required String password,
-    required String username,
-    required String phoneNumber,
-    required String city,
-    required String town,
-    required String blockName,
-    required String panchayatId,
     required String userType,
+    required String phone,
+    String city = '',
+    String town = '',
+    String block = '',
+    String panchayatId = '',
   }) async {
     try {
-      final normalizedEmail = email.trim().toLowerCase();
+      final normalizedEmail = email.trim();
       final normalizedUsername = username.trim().toLowerCase();
 
-      final usernameCheck = await _firestore
+      // 🔍 CHECK UNIQUE USERNAME
+      final nameCheck = await _firestore
           .collection('users')
           .where('username', isEqualTo: normalizedUsername)
           .get();
 
-      if (usernameCheck.docs.isNotEmpty) {
-        throw Exception("Username '@$normalizedUsername' is already taken.");
-      }
-
-      final emailCheck = await _firestore
-          .collection('users')
-          .where('email', isEqualTo: normalizedEmail)
-          .get();
-
-      if (emailCheck.docs.isNotEmpty) {
-        throw Exception("This email is already registered.");
+      if (nameCheck.docs.isNotEmpty) {
+        throw Exception("Username already taken");
       }
 
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: normalizedEmail,
         password: password,
       );
+
+      // 📧 SEND VERIFICATION EMAIL
+      await userCredential.user!.sendEmailVerification();
 
       final user = AppUser(
         uid: userCredential.user!.uid,
         email: normalizedEmail,
         username: normalizedUsername,
         userType: userType,
-        phoneNumber: phoneNumber,
+        phoneNumber: phone,
         city: city,
         town: town,
-        blockName: blockName,
+        blockName: block,
         panchayatId: panchayatId,
-        isPhoneVerified: false, // ❌ OTP DISABLED
         isAdmin: false,
         followers: [],
         following: [],
       );
 
-      await _firestore.collection('users').doc(user.uid).set(user.toJson());
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .set(user.toJson());
+
+      // 🔥 SIGN OUT AFTER REGISTER
+      await _auth.signOut();
+
       return user;
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw Exception(e.toString());
     }
-  }
-
-  // ================= LOGOUT =================
-  @override
-  Future<void> logout() async {
-    await _auth.signOut();
   }
 
   // ================= CURRENT USER =================
@@ -273,27 +161,44 @@ class FirebaseAuthRepo implements AuthRepo {
     final firebaseUser = _auth.currentUser;
     if (firebaseUser == null) return null;
 
-    final userDoc =
-        await _firestore.collection('users').doc(firebaseUser.uid).get();
+    // 🔥 FORCE REFRESH
+    await firebaseUser.reload();
+    final refreshedUser = _auth.currentUser;
 
-    if (!userDoc.exists) return null;
+    if (refreshedUser == null || !refreshedUser.emailVerified) {
+      await _auth.signOut();
+      return null;
+    }
+
+    final userDoc =
+        await _firestore.collection('users').doc(refreshedUser.uid).get();
+
+    if (!userDoc.exists) {
+      await _auth.signOut();
+      return null;
+    }
 
     final data = userDoc.data() as Map<String, dynamic>;
 
     return AppUser(
-      uid: firebaseUser.uid,
-      email: firebaseUser.email!,
+      uid: refreshedUser.uid,
+      email: refreshedUser.email!,
       username: data['username'] ?? '',
       userType: data['userType'] ?? 'Supporter',
       phoneNumber: data['phoneNumber'] ?? '',
       city: data['city'] ?? '',
       town: data['town'] ?? '',
-      panchayatId: data['panchayatId'] ?? '',
       blockName: data['blockName'] ?? '',
-      isPhoneVerified: data['isPhoneVerified'] ?? false,
+      panchayatId: data['panchayatId'] ?? '',
       isAdmin: data['isAdmin'] ?? false,
       followers: List<String>.from(data['followers'] ?? []),
       following: List<String>.from(data['following'] ?? []),
     );
+  }
+
+  // ================= LOGOUT =================
+  @override
+  Future<void> logout() async {
+    await _auth.signOut();
   }
 }
