@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../auth/presentation/cubits/auth_cubit.dart';
-import 'package:nri_trial1_clean/features/profile/domain/entities/profile_user.dart';
+import '../../domain/entities/profile_user.dart';
 import '../cubits/profile_cubit.dart';
 import 'profile_page_content.dart';
 
@@ -12,37 +13,31 @@ class UserProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Get YOUR uid
     final currentUser = context.read<AuthCubit>().currentUser;
     final String myUid = currentUser?.uid ?? "";
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      // ✅ SUPABASE STREAM (replaces Firebase DocumentSnapshot)
+      stream: Supabase.instance.client
+          .from('profiles')
+          .stream(primaryKey: ['id'])
+          .eq('id', uid),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        final user = ProfileUser.fromJson(
-          snapshot.data!.data() as Map<String, dynamic>,
-        );
+        final user = ProfileUser.fromJson(snapshot.data!.first);
 
-        // Check if you are in their followers list
+        // Am I following this user?
         final bool isFollowing = user.followers.contains(myUid);
 
         return Scaffold(
           appBar: AppBar(
             title: Text("@${user.username}"),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            foregroundColor: Colors.black,
             actions: [
-              // THE FOLLOW BUTTON
               Padding(
                 padding: const EdgeInsets.only(right: 15),
                 child: Center(
@@ -57,7 +52,6 @@ class UserProfilePage extends StatelessWidget {
                           const EdgeInsets.symmetric(horizontal: 20),
                     ),
                     onPressed: () {
-                      // Toggle follow via Cubit
                       context
                           .read<ProfileCubit>()
                           .toggleFollow(myUid, uid);

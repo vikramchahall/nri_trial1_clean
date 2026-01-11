@@ -25,13 +25,7 @@ class _LoginPageState extends State<LoginPage> {
     super.initState();
 
     // ✅ SAFE AUTO-FILL (NO ASYNC, NO CRASH)
-    final authCubit = context.read<AuthCubit>();
-    if (authCubit.prefilledEmail != null) {
-      emailController.text = authCubit.prefilledEmail!;
-    }
-    if (authCubit.prefilledPassword != null) {
-      pwController.text = authCubit.prefilledPassword!;
-    }
+
   }
 
   void login() {

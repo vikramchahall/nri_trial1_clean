@@ -4,43 +4,52 @@ class ProfileUser extends AppUser {
   final String bio;
   final String profileImageUrl;
 
+  // FOLLOW SYSTEM (kept for UI stability)
+  final List<String> followers;
+  final List<String> following;
+
   ProfileUser({
-    // ✅ REQUIRED AppUser FIELDS
+    // ===== AppUser (SUPER) FIELDS =====
     required super.uid,
     required super.email,
     required super.username,
     required super.userType,
     required super.isAdmin,
+    required super.isDC,
+    required super.phoneNumber,
+    required super.city,
+    required super.town,
+    required super.blockName,
+    required super.panchayatId,
 
-    // OPTIONAL AppUser FIELDS
-    super.phoneNumber,
-    super.city,
-    super.town,
-
-    // FOLLOW SYSTEM
-    super.followers,
-    super.following,
-
-    // PROFILE-SPECIFIC FIELDS
+    // ===== Profile-specific =====
     required this.bio,
     required this.profileImageUrl,
+
+    // ===== Follow system =====
+    this.followers = const [],
+    this.following = const [],
   });
 
-  // ✅ Required by ProfileCubit
+  // ===============================
+  // 🔁 COPY (USED BY ProfileCubit)
+  // ===============================
   ProfileUser copyWith({
     String? newBio,
     String? newProfileImageUrl,
-    String? newUsername,
   }) {
     return ProfileUser(
       uid: uid,
       email: email,
-      username: newUsername ?? username,
+      username: username,
       userType: userType,
       isAdmin: isAdmin,
+      isDC: isDC,
       phoneNumber: phoneNumber,
       city: city,
       town: town,
+      blockName: blockName,
+      panchayatId: panchayatId,
       bio: newBio ?? bio,
       profileImageUrl: newProfileImageUrl ?? profileImageUrl,
       followers: followers,
@@ -48,36 +57,37 @@ class ProfileUser extends AppUser {
     );
   }
 
+  // ===============================
+  // 🔄 TO SUPABASE
+  // ===============================
   @override
   Map<String, dynamic> toJson() {
-    return {
-      'uid': uid,
-      'email': email,
-      'username': username,
-      'userType': userType,
-      'phoneNumber': phoneNumber,
-      'city': city,
-      'town': town,
-      'isAdmin': isAdmin,
+    final map = super.toJson();
+    map.addAll({
       'bio': bio,
-      'profileImageUrl': profileImageUrl,
-      'followers': followers,
-      'following': following,
-    };
+      'profile_image_url': profileImageUrl,
+    });
+    return map;
   }
 
+  // ===============================
+  // 🔄 FROM SUPABASE
+  // ===============================
   factory ProfileUser.fromJson(Map<String, dynamic> json) {
     return ProfileUser(
-      uid: json['uid'] ?? '',
+      uid: json['id'] ?? '',
       email: json['email'] ?? '',
       username: json['username'] ?? '',
-      userType: json['userType'] ?? 'Supporter',
-      isAdmin: json['isAdmin'] ?? false,
-      phoneNumber: json['phoneNumber'] ?? '',
+      userType: json['user_type'] ?? 'Supporter',
+      isAdmin: json['is_admin'] ?? false,
+      isDC: json['is_dc'] ?? false,
+      phoneNumber: json['phone_number'] ?? '',
       city: json['city'] ?? '',
       town: json['town'] ?? '',
+      blockName: json['block_name'] ?? '',
+      panchayatId: json['panchayat_id'] ?? '',
       bio: json['bio'] ?? '',
-      profileImageUrl: json['profileImageUrl'] ?? '',
+      profileImageUrl: json['profile_image_url'] ?? '',
       followers: List<String>.from(json['followers'] ?? []),
       following: List<String>.from(json['following'] ?? []),
     );

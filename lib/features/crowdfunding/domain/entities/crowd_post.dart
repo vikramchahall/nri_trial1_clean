@@ -1,15 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class CrowdPost {
   final String id;
   final String userId;
   final String userName;
   final String text;
   final String imageUrl;
-  final DateTime timestamp;
   final double targetAmount;
   final double raisedAmount;
-  final List<String> likes; // ✅ NEW FIELD
+  final DateTime timestamp;
+  final List<String> likes;
 
   CrowdPost({
     required this.id,
@@ -17,44 +15,47 @@ class CrowdPost {
     required this.userName,
     required this.text,
     required this.imageUrl,
-    required this.timestamp,
     required this.targetAmount,
     required this.raisedAmount,
-    required this.likes, // ✅ REQUIRED
+    required this.timestamp,
+    this.likes = const [],
   });
 
-  /// Convert to Firestore
+  // ===============================
+  // 🔄 TO SUPABASE (INSERT / UPDATE)
+  // ===============================
   Map<String, dynamic> toJson() => {
-        'userId': userId,
-        'userName': userName,
+        'user_id': userId,
+        'user_name': userName,
         'text': text,
-        'imageUrl': imageUrl,
-        'timestamp': timestamp,
-        'targetAmount': targetAmount,
-        'raisedAmount': raisedAmount,
-        'likes': likes, // ✅ SAVE LIKES
+        'image_url': imageUrl,
+        'target_amount': targetAmount,
+        'raised_amount': raisedAmount,
+        'timestamp': timestamp.toIso8601String(),
       };
 
-  /// Read from Firestore
+  // ===============================
+  // 🔄 FROM SUPABASE (SELECT)
+  // ===============================
   factory CrowdPost.fromJson(Map<String, dynamic> json, String docId) {
     return CrowdPost(
       id: docId,
-      userId: json['userId'] ?? '',
-      userName: json['userName'] ?? 'User',
+      userId: json['user_id'] ?? '',
+      userName: json['user_name'] ?? 'User',
       text: json['text'] ?? '',
-      imageUrl: json['imageUrl'] ?? '',
-      timestamp: (json['timestamp'] as Timestamp).toDate(),
-      targetAmount: (json['targetAmount'] ?? 0).toDouble(),
-      raisedAmount: (json['raisedAmount'] ?? 0).toDouble(),
-      likes: List<String>.from(json['likes'] ?? []), // ✅ SAFE READ
+      imageUrl: json['image_url'] ?? '',
+      targetAmount: (json['target_amount'] ?? 0).toDouble(),
+      raisedAmount: (json['raised_amount'] ?? 0).toDouble(),
+      // Supabase returns timestamps as ISO 8601 strings
+      timestamp: DateTime.parse(json['timestamp']),
+      likes: List<String>.from(json['likes'] ?? []),
     );
   }
 
-  /// Helper: check if user liked post
-  bool isLikedBy(String uid) {
-    return likes.contains(uid);
-  }
-
-  /// Helper: like count
+  // ===============================
+  // 🧠 HELPERS (UI SAFE)
+  // ===============================
   int get likeCount => likes.length;
+
+  bool isLikedBy(String uid) => likes.contains(uid);
 }

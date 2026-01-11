@@ -9,8 +9,6 @@ import '../../../crowdfunding/presentation/pages/crowd_feed_page.dart';
 import '../../../crowdfunding/presentation/pages/upload_crowd_page.dart';
 import '../../../profile/presentation/pages/my_profile_page.dart';
 import '../../../search/presentation/pages/search_page.dart';
-
-// 🔥 DC OFFICE PAGE
 import '../../presentation/pages/dc_office_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -32,19 +30,17 @@ class _HomePageState extends State<HomePage> {
           user = state.user;
         }
 
-        // 🔐 Safety
         if (user == null) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // ================= PAGES =================
         final List<Widget> pages = [
           const CrowdFeedPage(),        // Home
           const SearchPage(),           // Search
-          const DCOfficePage(),         // Official / DC Office
-          MyProfilePage(uid: user.uid) // Profile
+          const DCOfficePage(),         // Official
+          MyProfilePage(uid: user.uid), // Profile
         ];
 
         return Scaffold(
@@ -53,7 +49,7 @@ class _HomePageState extends State<HomePage> {
             children: pages,
           ),
 
-          // ➕ POST BUTTON — FOR ALL USERS (HOME TAB ONLY)
+          // ✅ UNIVERSAL POSTING (HOME TAB ONLY)
           floatingActionButton: (_selectedIndex == 0)
               ? FloatingActionButton(
                   backgroundColor: Colors.green.shade600,
@@ -63,10 +59,7 @@ class _HomePageState extends State<HomePage> {
                       builder: (_) => const UploadCrowdPage(),
                     ),
                   ),
-                  child: const Icon(
-                    Icons.add_a_photo,
-                    color: Colors.white,
-                  ),
+                  child: const Icon(Icons.add_a_photo, color: Colors.white),
                 )
               : null,
 
@@ -86,7 +79,7 @@ class _HomePageState extends State<HomePage> {
                 label: "Search",
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.campaign), // Official / DC
+                icon: Icon(Icons.campaign),
                 label: "Official",
               ),
               BottomNavigationBarItem(

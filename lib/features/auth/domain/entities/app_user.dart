@@ -2,84 +2,64 @@ class AppUser {
   final String uid;
   final String email;
   final String username;
+  final String userType;
+  final bool isAdmin;
+  final bool isDC;
 
-  // ROLE SYSTEM
-  final String userType; // "Pind" or "User"
-
-  // PHONE + LOCATION
+  // EXTRA FIELDS (needed to fix current UI + cubit errors)
   final String phoneNumber;
   final String city;
   final String town;
-
-  // LOCATION FIELDS
-  final String panchayatId;
   final String blockName;
-
-  // ROLE FLAGS
-  final bool isAdmin;      // Pind admin
-  final bool isDeveloper;  // Tech / bulk uploads
-  final bool isDC;         // 🔥 DC Office (Superuser)
-
-  // PHONE VERIFICATION
-  final bool isPhoneVerified;
-
-  // FOLLOW SYSTEM
-  final List<String> followers;
-  final List<String> following;
+  final String panchayatId;
 
   AppUser({
     required this.uid,
     required this.email,
     required this.username,
     required this.userType,
+    required this.isAdmin,
+    this.isDC = false,
     this.phoneNumber = '',
     this.city = '',
     this.town = '',
-    this.panchayatId = '',
     this.blockName = '',
-    this.isAdmin = false,
-    this.isDeveloper = false,
-    this.isDC = false, // ✅ DEFAULT FALSE
-    this.isPhoneVerified = false,
-    this.followers = const [],
-    this.following = const [],
+    this.panchayatId = '',
   });
 
+  // ===============================
+  // 🔄 TO SUPABASE (INSERT / UPDATE)
+  // ===============================
   Map<String, dynamic> toJson() => {
-        'uid': uid,
+        'id': uid,
         'email': email,
         'username': username,
-        'userType': userType,
-        'phoneNumber': phoneNumber,
+        'user_type': userType,
+        'is_admin': isAdmin,
+        'is_dc': isDC,
+        'phone_number': phoneNumber,
         'city': city,
         'town': town,
-        'panchayatId': panchayatId,
-        'blockName': blockName,
-        'isAdmin': isAdmin,
-        'isDeveloper': isDeveloper,
-        'isDC': isDC,
-        'isPhoneVerified': isPhoneVerified,
-        'followers': followers,
-        'following': following,
+        'block_name': blockName,
+        'panchayat_id': panchayatId,
       };
 
+  // ===============================
+  // 🔄 FROM SUPABASE (SELECT)
+  // ===============================
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(
-      uid: json['uid'] ?? '',
+      uid: json['id'] ?? '',
       email: json['email'] ?? '',
       username: json['username'] ?? '',
-      userType: json['userType'] ?? 'User',
-      phoneNumber: json['phoneNumber'] ?? '',
+      userType: json['user_type'] ?? 'Supporter',
+      isAdmin: json['is_admin'] ?? false,
+      isDC: json['is_dc'] ?? false,
+      phoneNumber: json['phone_number'] ?? '',
       city: json['city'] ?? '',
       town: json['town'] ?? '',
-      panchayatId: json['panchayatId'] ?? '',
-      blockName: json['blockName'] ?? '',
-      isAdmin: json['isAdmin'] ?? false,
-      isDeveloper: json['isDeveloper'] ?? false,
-      isDC: json['isDC'] ?? false,
-      isPhoneVerified: json['isPhoneVerified'] ?? false,
-      followers: List<String>.from(json['followers'] ?? []),
-      following: List<String>.from(json['following'] ?? []),
+      blockName: json['block_name'] ?? '',
+      panchayatId: json['panchayat_id'] ?? '',
     );
   }
 }

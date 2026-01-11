@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/entities/profile_user.dart';
 import '../../../../components/my_bio_box.dart';
 
-// ✅ THESE MUST BE WIDGET FILES
+// FOLLOWERS / FOLLOWING
 import 'follower_list_page.dart';
+
+// POSTS
 import '../../../crowdfunding/domain/entities/crowd_post.dart';
 import '../../../crowdfunding/presentation/pages/post_detail_page.dart';
+
+// CUBIT
+import '../cubits/profile_cubit.dart';
 
 class ProfilePageContent extends StatelessWidget {
   final ProfileUser user;
@@ -100,28 +105,27 @@ class ProfilePageContent extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        // ================= POSTS GRID =================
+        // ================= POSTS GRID (MODERN) =================
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('posts')
-                .where('userId', isEqualTo: user.uid)
-                .snapshots(),
+          child: FutureBuilder<List<CrowdPost>>(
+            future: context.read<ProfileCubit>().fetchUserPosts(user.uid),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final posts = snapshot.data?.docs ?? [];
-
-              if (posts.isEmpty) {
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return const Center(
                   child: Text("No causes posted yet."),
                 );
               }
 
+              final posts = snapshot.data!;
+
               return GridView.builder(
-                padding: const EdgeInsets.all(5),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(2),
                 gridDelegate:
                     const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
@@ -130,14 +134,7 @@ class ProfilePageContent extends StatelessWidget {
                 ),
                 itemCount: posts.length,
                 itemBuilder: (context, index) {
-                  final postData =
-                      posts[index].data() as Map<String, dynamic>;
-
-                  // 🔁 Convert Firestore doc → CrowdPost
-                  final post = CrowdPost.fromJson(
-                    postData,
-                    posts[index].id,
-                  );
+                  final post = posts[index];
 
                   return GestureDetector(
                     onTap: () {
@@ -148,12 +145,15 @@ class ProfilePageContent extends StatelessWidget {
                         ),
                       );
                     },
-                    child: Image.network(
-                      post.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.broken_image),
+                    child: Container(
+                      color: Colors.grey.shade200,
+                      child: Image.network(
+                        post.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.broken_image,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
                   );

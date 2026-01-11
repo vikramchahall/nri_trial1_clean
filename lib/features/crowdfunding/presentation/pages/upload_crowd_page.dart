@@ -1,12 +1,10 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/foundation.dart'; // kIsWeb
 import 'package:image_picker/image_picker.dart';
 
 import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
-import 'package:nri_trial1_clean/utlis/image_converter.dart';
 
 class UploadCrowdPage extends StatefulWidget {
   const UploadCrowdPage({super.key});
@@ -16,52 +14,42 @@ class UploadCrowdPage extends StatefulWidget {
 }
 
 class _UploadCrowdPageState extends State<UploadCrowdPage> {
-  final _captionController = TextEditingController();
-  final _targetController = TextEditingController();
-  final ImagePicker _picker = ImagePicker();
+  final TextEditingController _captionController = TextEditingController();
+  final TextEditingController _targetController = TextEditingController();
 
-  Uint8List? _selectedImage;
-  String? _selectedFileName;
+  Uint8List? _selectedMediaBytes;
+  bool _isVideo = false;
 
   bool _isUploading = false;
   bool _isDonationPost = false;
 
   // ===============================
-  // 📷 PICK IMAGE (COMPRESSED + HEIC SAFE)
+  // 📷 PICK IMAGE OR VIDEO
   // ===============================
-  Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(
-      source: ImageSource.gallery,
+  Future<void> _pickMedia(bool isVideo) async {
+    final ImagePicker picker = ImagePicker();
+    XFile? file;
 
-      // ✅ STORAGE SAVER SETTINGS
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 70, // ~300–400 KB instead of 5–8 MB
-    );
-
-    if (image == null) return;
-
-    final String lowerName = image.name.toLowerCase();
-
-    // 🚫 BLOCK HEIC ON WEB
-    if (kIsWeb &&
-        (lowerName.endsWith('.heic') || lowerName.endsWith('.heif'))) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "HEIC images are not supported on web. Please upload JPG or PNG.",
-          ),
-        ),
+    if (isVideo) {
+      file = await picker.pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: const Duration(seconds: 30), // ⛔ LIMIT VIDEO
       );
-      return;
+    } else {
+      file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1080,     // 📉 COMPRESS IMAGE
+        imageQuality: 70,   // 📉 COMPRESS IMAGE
+      );
     }
 
-    final bytes = await image.readAsBytes();
-
-    setState(() {
-      _selectedImage = bytes;
-      _selectedFileName = image.name;
-    });
+    if (file != null) {
+      final bytes = await file.readAsBytes();
+      setState(() {
+        _selectedMediaBytes = bytes;
+        _isVideo = isVideo;
+      });
+    }
   }
 
   // ===============================
@@ -77,37 +65,29 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
       return;
     }
 
+    if (_selectedMediaBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select an image or video")),
+      );
+      return;
+    }
+
     double targetValue = 0;
     if (_isDonationPost) {
       targetValue = double.tryParse(_targetController.text) ?? 0;
       if (targetValue <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Please enter a valid donation amount"),
-          ),
+          const SnackBar(content: Text("Enter valid donation amount")),
         );
         return;
       }
     }
 
-    if (_selectedImage == null || _selectedFileName == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select an image")),
-      );
-      return;
-    }
-
     setState(() => _isUploading = true);
-
-    // ===============================
-    // 🧠 IMAGE PREPARATION
-    // ===============================
-    final Uint8List safeBytes =
-        convertToJpegIfNeeded(_selectedImage!, _selectedFileName!);
 
     await context.read<CrowdCubit>().createCrowdPost(
           text: _captionController.text,
-          imageBytes: safeBytes,
+          imageBytes: _selectedMediaBytes!, // video support later
           target: targetValue,
           uId: user.uid,
           uName: user.username,
@@ -126,37 +106,35 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
         title: const Text("New Post"),
         actions: [
           IconButton(
-            onPressed: _isUploading ? null : _upload,
             icon: const Icon(Icons.done),
-          )
+            onPressed: _isUploading ? null : _upload,
+          ),
         ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            // MEDIA PICKER
             GestureDetector(
-              onTap: _pickImage,
+              onTap: () => _pickMedia(false), // image for now
               child: Container(
-                height: 200,
+                height: 220,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: _selectedImage != null
-                    ? Image.memory(
-                        _selectedImage!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.broken_image, size: 50),
-                      )
+                child: _selectedMediaBytes != null
+                    ? const Icon(Icons.check_circle,
+                        size: 60, color: Colors.green)
                     : const Icon(Icons.add_a_photo, size: 50),
               ),
             ),
 
             const SizedBox(height: 20),
 
+            // DONATION SWITCH
             SwitchListTile(
               title: const Text(
                 "Post for Donation?",
@@ -164,8 +142,9 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
               ),
               subtitle: const Text("Enable this to ask for funds"),
               value: _isDonationPost,
+              onChanged: (val) =>
+                  setState(() => _isDonationPost = val),
               activeColor: Colors.green,
-              onChanged: (val) => setState(() => _isDonationPost = val),
             ),
 
             if (_isDonationPost) ...[
@@ -174,7 +153,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
                 controller: _targetController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: "Target Money Needed (₹)",
+                  labelText: "Target Amount (₹)",
                   prefixIcon: Icon(Icons.currency_rupee),
                   border: OutlineInputBorder(),
                 ),
@@ -183,6 +162,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
 
             const SizedBox(height: 15),
 
+            // CAPTION
             TextField(
               controller: _captionController,
               maxLines: 3,
@@ -197,4 +177,3 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     );
   }
 }
-  

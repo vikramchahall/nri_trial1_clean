@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
-import 'package:razorpay_flutter/razorpay_flutter.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../domain/entities/crowd_post.dart';
 import '../../domain/entities/comment.dart';
 import '../cubits/crowd_cubit.dart';
 import '../pages/crowd_history_page.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
-import 'package:nri_trial1_clean/services/payment_gateway.dart' as gateway;
 
 class CrowdPostTile extends StatefulWidget {
   final CrowdPost crowdPost;
@@ -21,24 +20,10 @@ class CrowdPostTile extends StatefulWidget {
 }
 
 class _CrowdPostTileState extends State<CrowdPostTile> {
-  late Razorpay _razorpay;
-  double _lastAmount = 0;
-
   final commentController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-
-    if (!kIsWeb) {
-      _razorpay = Razorpay();
-      _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handleMobileSuccess);
-      _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    }
-  }
-
   // =========================
-  // 💬 COMMENT TRAY
+  // 💬 COMMENT TRAY (SUPABASE)
   // =========================
   void _showCommentTray(BuildContext context) {
     showModalBottomSheet(
@@ -54,15 +39,7 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
         maxChildSize: 0.9,
         builder: (context, scrollController) => Column(
           children: [
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              height: 5,
-              width: 40,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
+            const SizedBox(height: 10),
             const Text(
               "Comments",
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -70,19 +47,18 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
             const Divider(),
 
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('posts')
-                    .doc(widget.crowdPost.id)
-                    .collection('comments')
-                    .orderBy('timestamp', descending: true)
-                    .snapshots(),
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: Supabase.instance.client
+                    .from('comments')
+                    .stream(primaryKey: ['id'])
+                    .eq('post_id', widget.crowdPost.id)
+                    .order('timestamp', ascending: false),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final comments = snapshot.data!.docs;
+                  final comments = snapshot.data!;
                   if (comments.isEmpty) {
                     return const Center(child: Text("No comments yet."));
                   }
@@ -94,13 +70,11 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                     controller: scrollController,
                     itemCount: comments.length,
                     itemBuilder: (context, index) {
-                      final data =
-                          comments[index].data() as Map<String, dynamic>;
-                      final commentId = comments[index].id;
+                      final data = comments[index];
 
                       final bool canDelete =
                           currentUser != null &&
-                          (currentUser.uid == data['userId'] ||
+                          (currentUser.uid == data['user_id'] ||
                               currentUser.uid ==
                                   widget.crowdPost.userId);
 
@@ -110,19 +84,25 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                           child: Icon(Icons.person, size: 15),
                         ),
                         title: Text(
-                          "@${data['userName']}",
+                          "@${data['user_name']}",
                           style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 13),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
-                        subtitle: Text(data['text']),
+                        subtitle: Text(data['text'] ?? ''),
                         trailing: canDelete
                             ? IconButton(
-                                icon: const Icon(Icons.delete_outline,
-                                    size: 18),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                ),
                                 onPressed: () => context
                                     .read<CrowdCubit>()
                                     .deleteComment(
-                                        widget.crowdPost.id, commentId),
+                                      widget.crowdPost.id,
+                                      data['id'].toString(),
+                                    ),
                               )
                             : null,
                       );
@@ -182,70 +162,75 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
   }
 
   // =========================
-  // 💳 PAYMENT LOGIC
+  // 📲 WHATSAPP DONATION
   // =========================
-  void _handleMobileSuccess(PaymentSuccessResponse response) {
-    _onPaymentSuccess();
-  }
+  void _launchWhatsApp(String name, String amount) async {
+    const phone = "919999999999"; // 🔴 PUT REAL NUMBER
+    final message =
+        "Hi, my name is $name. I donated ₹$amount for the post by @${widget.crowdPost.userName}. Screenshot attached.";
 
-  void _onPaymentSuccess() {
-    final user = context.read<AuthCubit>().currentUser;
-
-    final donorName =
-        (user != null && user.username.trim().isNotEmpty)
-            ? user.username
-            : "Anonymous Donor";
-
-    context.read<CrowdCubit>().donate(
-          widget.crowdPost.id,
-          donorName,
-          _lastAmount,
-        );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Donation Successful!"),
-        backgroundColor: Colors.green,
-      ),
+    final url = Uri.parse(
+      "https://wa.me/$phone?text=${Uri.encodeComponent(message)}",
     );
-  }
 
-  void _handlePaymentError(PaymentFailureResponse response) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Payment Failed: ${response.message}"),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
-
-  void _startPayment(double amount) {
-    _lastAmount = amount;
-    const String myKey = 'rzp_test_Rxm27dLhNpIVZT';
-
-    if (kIsWeb) {
-      gateway.openRazorpayWeb(
-        key: myKey,
-        amount: (amount * 100).toInt(),
-        name: 'Village Help',
-        description: 'Donation',
-        onSuccess: () => _onPaymentSuccess(),
-      );
-    } else {
-      _razorpay.open({
-        'key': myKey,
-        'amount': (amount * 100).toInt(),
-        'name': 'Village Help',
-        'description': 'Donation',
-      });
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
     }
   }
 
+  void _showDonationDialog(BuildContext context) {
+    final controller = TextEditingController();
+    final user = context.read<AuthCubit>().currentUser;
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Donation Details"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Send money to:", style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const SelectableText("UPI: villagehelp@upi"),
+            const SelectableText("Bank: SBI | A/C: 1234567890"),
+            const Divider(),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(prefixText: "₹ "),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                Navigator.pop(context);
+                _launchWhatsApp(
+                  user?.username ?? "User",
+                  controller.text,
+                );
+              }
+            },
+            child: const Text("Confirm on WhatsApp"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================
+  // 🖥 UI
+  // =========================
   @override
   Widget build(BuildContext context) {
     final currentUser = context.read<AuthCubit>().currentUser;
 
-    // 🔥 GOD MODE DELETE PERMISSION
     final bool canDelete =
         currentUser != null &&
         (currentUser.uid == widget.crowdPost.userId ||
@@ -273,12 +258,12 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
               "@${widget.crowdPost.userName}",
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-
-            // 🗑 DELETE ICON (OWNER OR DC)
             trailing: canDelete
                 ? IconButton(
-                    icon: const Icon(Icons.delete_outline,
-                        color: Colors.red),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                    ),
                     onPressed: () => context
                         .read<CrowdCubit>()
                         .deleteCrowd(widget.crowdPost.id),
@@ -312,27 +297,27 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                       : () => context
                           .read<CrowdCubit>()
                           .toggleLike(
-                              widget.crowdPost.id,
-                              currentUser.uid),
+                            widget.crowdPost.id,
+                            currentUser.uid,
+                          ),
                 ),
 
                 if (isDonationPost)
                   _actionItem(
                     icon: Icons.volunteer_activism,
                     label: "Donate",
-                    color: Colors.redAccent,
+                    color: Colors.green,
                     onTap: () => _showDonationDialog(context),
                   ),
 
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('posts')
-                      .doc(widget.crowdPost.id)
-                      .collection('comments')
-                      .snapshots(),
+                StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: Supabase.instance.client
+                      .from('comments')
+                      .stream(primaryKey: ['id'])
+                      .eq('post_id', widget.crowdPost.id),
                   builder: (context, snapshot) {
-                    final int count =
-                        snapshot.hasData ? snapshot.data!.docs.length : 0;
+                    final count =
+                        snapshot.hasData ? snapshot.data!.length : 0;
 
                     return _actionItem(
                       icon: Icons.chat_bubble_outline,
@@ -349,9 +334,9 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            CrowdHistoryPage(
-                                postId: widget.crowdPost.id),
+                        builder: (_) => CrowdHistoryPage(
+                          postId: widget.crowdPost.id,
+                        ),
                       ),
                     ),
                   ),
@@ -399,35 +384,6 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
             Text(label, style: const TextStyle(fontSize: 12)),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showDonationDialog(BuildContext context) {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Enter Amount"),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(prefixText: "₹ "),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              final amount =
-                  double.tryParse(controller.text) ?? 0;
-              if (amount > 0) {
-                Navigator.pop(context);
-                _startPayment(amount);
-              }
-            },
-            child: const Text("Proceed"),
-          ),
-        ],
       ),
     );
   }

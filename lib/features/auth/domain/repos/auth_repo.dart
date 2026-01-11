@@ -10,7 +10,7 @@ abstract class AuthRepo {
     required String password,
     required String username,
     required String userType,
-    required String phone,
+
     String city,
     String town,
     String block,

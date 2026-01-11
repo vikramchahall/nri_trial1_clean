@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 
@@ -10,6 +10,7 @@ class DCOfficePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.read<AuthCubit>().currentUser;
+    final supabase = Supabase.instance.client;
 
     return Scaffold(
       appBar: AppBar(
@@ -25,18 +26,17 @@ class DCOfficePage extends StatelessWidget {
         ],
       ),
 
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('dc_updates')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: supabase
+            .from('official_updates')
+            .stream(primaryKey: ['id'])
+            .order('timestamp', ascending: false),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final updates = snapshot.data!.docs;
-
+          final updates = snapshot.data!;
           if (updates.isEmpty) {
             return const Center(
               child: Text("No official updates yet."),
@@ -44,51 +44,56 @@ class DCOfficePage extends StatelessWidget {
           }
 
           return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
             itemCount: updates.length,
             itemBuilder: (context, index) {
-              final data =
-                  updates[index].data() as Map<String, dynamic>;
+              final data = updates[index];
 
+              // ✅ MODERN GREEN NEWS CARD
               return Container(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                padding: const EdgeInsets.all(15),
+                margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    left: BorderSide(
-                      color: Colors.green.shade700,
-                      width: 5,
+                  color: Colors.green[700], // Jalandhar Green
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(15),
+                  title: Text(
+                    data['title'] ?? '',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 5,
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          data['message'] ?? '',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _formatDate(data['timestamp']),
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      data['title'] ?? '',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(data['message'] ?? ''),
-                    const SizedBox(height: 10),
-                    Text(
-                      data['date'] ?? '',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+                  ),
+                  trailing: const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.white,
+                    size: 14,
+                  ),
                 ),
               );
             },
@@ -104,6 +109,7 @@ class DCOfficePage extends StatelessWidget {
   void _showPostUpdateDialog(BuildContext context) {
     final titleController = TextEditingController();
     final msgController = TextEditingController();
+    final supabase = Supabase.instance.client;
 
     showDialog(
       context: context,
@@ -138,16 +144,9 @@ class DCOfficePage extends StatelessWidget {
               if (titleController.text.trim().isEmpty ||
                   msgController.text.trim().isEmpty) return;
 
-              await FirebaseFirestore.instance
-                  .collection('dc_updates')
-                  .add({
+              await supabase.from('official_updates').insert({
                 'title': titleController.text.trim(),
                 'message': msgController.text.trim(),
-                'timestamp': FieldValue.serverTimestamp(),
-                'date': DateTime.now()
-                    .toString()
-                    .split(' ')
-                    .first,
               });
 
               Navigator.pop(dialogContext);
@@ -157,5 +156,21 @@ class DCOfficePage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // ===============================
+  // 🗓 FORMAT TIMESTAMP (SAFE)
+  // ===============================
+  static String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return '';
+    try {
+      return DateTime.parse(timestamp.toString())
+          .toLocal()
+          .toString()
+          .split(' ')
+          .first;
+    } catch (_) {
+      return '';
+    }
   }
 }

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Comment {
   final String id;
   final String postId;
@@ -17,22 +15,28 @@ class Comment {
     required this.timestamp,
   });
 
+  // ===============================
+  // 🔄 TO SUPABASE (INSERT)
+  // ===============================
   Map<String, dynamic> toJson() => {
-        'postId': postId,
-        'userId': userId,
-        'userName': userName,
+        'post_id': postId,
+        'user_id': userId,
+        'user_name': userName,
         'text': text,
-        'timestamp': timestamp,
+        'timestamp': timestamp.toIso8601String(),
       };
 
-  factory Comment.fromJson(Map<String, dynamic> json, String docId) {
+  // ===============================
+  // 🔄 FROM SUPABASE (SELECT)
+  // ===============================
+  factory Comment.fromJson(Map<String, dynamic> json, String id) {
     return Comment(
-      id: docId,
-      postId: json['postId'] ?? '',
-      userId: json['userId'] ?? '',
-      userName: json['userName'] ?? 'User',
+      id: id,
+      postId: json['post_id'] ?? '',
+      userId: json['user_id'] ?? '',
+      userName: json['user_name'] ?? 'User',
       text: json['text'] ?? '',
-      timestamp: (json['timestamp'] as Timestamp).toDate(),
+      timestamp: DateTime.parse(json['timestamp']),
     );
   }
 }

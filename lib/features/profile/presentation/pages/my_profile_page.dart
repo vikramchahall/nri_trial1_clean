@@ -1,67 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:nri_trial1_clean/features/profile/domain/entities/profile_user.dart';
-import 'package:nri_trial1_clean/features/auth/presentation/cubits/auth_cubit.dart';
-import 'package:nri_trial1_clean/features/auth/presentation/cubits/language_cubit.dart';
-
+import '../../domain/entities/profile_user.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
 import 'profile_page_content.dart';
 import 'profile_edit_page.dart';
 
 class MyProfilePage extends StatelessWidget {
   final String uid;
+  const MyProfilePage({super.key, required this.uid});
 
-  const MyProfilePage({
-    super.key,
-    required this.uid,
-  });
-
-  // ================= LANGUAGE DIALOG (SAFE) =================
-  void _showLanguageDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Select Language"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text("English"),
-              onTap: () {
-                context
-                    .read<LanguageCubit>()
-                    .changeLanguage(AppLanguage.english);
-                Navigator.pop(dialogContext);
-              },
-            ),
-            ListTile(
-              title: const Text("हिंदी"),
-              onTap: () {
-                context
-                    .read<LanguageCubit>()
-                    .changeLanguage(AppLanguage.hindi);
-                Navigator.pop(dialogContext);
-              },
-            ),
-            ListTile(
-              title: const Text("ਪੰਜਾਬੀ"),
-              onTap: () {
-                context
-                    .read<LanguageCubit>()
-                    .changeLanguage(AppLanguage.punjabi);
-                Navigator.pop(dialogContext);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ================= SETTINGS BOTTOM SHEET (FIXED) =================
+  // ================= SETTINGS BOTTOM SHEET =================
   void _showSettingsTray(BuildContext context, ProfileUser user) {
-    // 🔥 STORE CUBITS BEFORE OPENING SHEET
     final authCubit = context.read<AuthCubit>();
 
     showModalBottomSheet(
@@ -78,16 +29,6 @@ class MyProfilePage extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const Divider(),
-
-          // 🌐 LANGUAGE (SAFE FLOW)
-          ListTile(
-            leading: const Icon(Icons.translate),
-            title: const Text("Language / भाषा / ਭਾਸ਼ਾ"),
-            onTap: () {
-              Navigator.pop(sheetContext);      // 1️⃣ close tray
-              _showLanguageDialog(context);     // 2️⃣ open dialog
-            },
-          ),
 
           // ✏️ EDIT PROFILE
           ListTile(
@@ -106,7 +47,7 @@ class MyProfilePage extends StatelessWidget {
 
           const Divider(),
 
-          // 🚪 LOGOUT (CRASH-SAFE)
+          // 🚪 LOGOUT
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text(
@@ -114,8 +55,8 @@ class MyProfilePage extends StatelessWidget {
               style: TextStyle(color: Colors.red),
             ),
             onTap: () {
-              Navigator.pop(sheetContext); // 1️⃣ close sheet
-              authCubit.logout();          // 2️⃣ logout
+              Navigator.pop(sheetContext);
+              authCubit.logout();
             },
           ),
 
@@ -128,25 +69,24 @@ class MyProfilePage extends StatelessWidget {
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      // ✅ SUPABASE STREAM (replaces Firebase)
+      stream: Supabase.instance.client
+          .from('profiles')
+          .stream(primaryKey: ['id'])
+          .eq('id', uid),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        final user = ProfileUser.fromJson(
-          snapshot.data!.data() as Map<String, dynamic>,
-        );
+        final user = ProfileUser.fromJson(snapshot.data!.first);
 
         return Scaffold(
           appBar: AppBar(
-            title: Text("@${user.username}"),
+            title: Text("@${user.username} (Me)"),
             actions: [
               IconButton(
                 icon: const Icon(Icons.settings),
