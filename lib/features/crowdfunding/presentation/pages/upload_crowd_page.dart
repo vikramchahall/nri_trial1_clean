@@ -27,19 +27,23 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
   bool _isDonationPost = false;
 
   // ===============================
-  // 📷 PICK IMAGE (HEIC SAFE)
+  // 📷 PICK IMAGE (COMPRESSED + HEIC SAFE)
   // ===============================
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 70,
+
+      // ✅ STORAGE SAVER SETTINGS
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 70, // ~300–400 KB instead of 5–8 MB
     );
 
     if (image == null) return;
 
     final String lowerName = image.name.toLowerCase();
 
-    // 🚫 BLOCK HEIC ON WEB (CRITICAL)
+    // 🚫 BLOCK HEIC ON WEB
     if (kIsWeb &&
         (lowerName.endsWith('.heic') || lowerName.endsWith('.heif'))) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -98,11 +102,6 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     // ===============================
     // 🧠 IMAGE PREPARATION
     // ===============================
-    final String nameLower = _selectedFileName!.toLowerCase();
-    final bool isHeic =
-        nameLower.endsWith('.heic') || nameLower.endsWith('.heif');
-
-    // Convert ONLY on mobile
     final Uint8List safeBytes =
         convertToJpegIfNeeded(_selectedImage!, _selectedFileName!);
 
@@ -198,3 +197,4 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     );
   }
 }
+  

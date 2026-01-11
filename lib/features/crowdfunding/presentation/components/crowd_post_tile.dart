@@ -245,6 +245,12 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
   Widget build(BuildContext context) {
     final currentUser = context.read<AuthCubit>().currentUser;
 
+    // 🔥 GOD MODE DELETE PERMISSION
+    final bool canDelete =
+        currentUser != null &&
+        (currentUser.uid == widget.crowdPost.userId ||
+            currentUser.isDC);
+
     final bool isDonationPost = widget.crowdPost.targetAmount > 0;
 
     final bool isLiked = currentUser != null &&
@@ -267,6 +273,17 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
               "@${widget.crowdPost.userName}",
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
+
+            // 🗑 DELETE ICON (OWNER OR DC)
+            trailing: canDelete
+                ? IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        color: Colors.red),
+                    onPressed: () => context
+                        .read<CrowdCubit>()
+                        .deleteCrowd(widget.crowdPost.id),
+                  )
+                : null,
           ),
 
           AspectRatio(
@@ -279,7 +296,6 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
             ),
           ),
 
-          // 🔘 ACTION ROW — MOBILE SAFE
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(
@@ -308,24 +324,23 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                     onTap: () => _showDonationDialog(context),
                   ),
 
- StreamBuilder<QuerySnapshot>(
-  stream: FirebaseFirestore.instance
-      .collection('posts')
-      .doc(widget.crowdPost.id)
-      .collection('comments')
-      .snapshots(),
-  builder: (context, snapshot) {
-    final int count =
-        snapshot.hasData ? snapshot.data!.docs.length : 0;
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('posts')
+                      .doc(widget.crowdPost.id)
+                      .collection('comments')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final int count =
+                        snapshot.hasData ? snapshot.data!.docs.length : 0;
 
-    return _actionItem(
-      icon: Icons.chat_bubble_outline,
-      label: count.toString(),
-      onTap: () => _showCommentTray(context),
-    );
-  },
-),
-
+                    return _actionItem(
+                      icon: Icons.chat_bubble_outline,
+                      label: count.toString(),
+                      onTap: () => _showCommentTray(context),
+                    );
+                  },
+                ),
 
                 if (isDonationPost)
                   _actionItem(
@@ -335,7 +350,8 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                       context,
                       MaterialPageRoute(
                         builder: (_) =>
-                            CrowdHistoryPage(postId: widget.crowdPost.id),
+                            CrowdHistoryPage(
+                                postId: widget.crowdPost.id),
                       ),
                     ),
                   ),
@@ -380,10 +396,7 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
           children: [
             Icon(icon, size: 20, color: color),
             const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 12),
-            ),
+            Text(label, style: const TextStyle(fontSize: 12)),
           ],
         ),
       ),
