@@ -1,12 +1,10 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/foundation.dart'; // kIsWeb
 import 'package:image_picker/image_picker.dart';
 
 import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
-import 'package:nri_trial1_clean/utlis/image_converter.dart';
 
 class UploadCrowdPage extends StatefulWidget {
   const UploadCrowdPage({super.key});
@@ -16,60 +14,65 @@ class UploadCrowdPage extends StatefulWidget {
 }
 
 class _UploadCrowdPageState extends State<UploadCrowdPage> {
-  final _captionController = TextEditingController();
-  final _targetController = TextEditingController();
-  final ImagePicker _picker = ImagePicker();
+  final TextEditingController _captionController = TextEditingController();
+  final TextEditingController _targetController = TextEditingController();
 
-  Uint8List? _selectedImage;
-  String? _selectedFileName;
+  Uint8List? _selectedMediaBytes;
+  bool _isFileTypeVideo = false;
 
   bool _isUploading = false;
   bool _isDonationPost = false;
 
   // ===============================
-  // 📷 PICK IMAGE (HEIC SAFE)
+  // 📷 PICK MEDIA
   // ===============================
-  Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-    );
+  Future<void> _pickMedia(bool isVideo) async {
+    if (_isUploading) return;
 
-    if (image == null) return;
+    final picker = ImagePicker();
+    XFile? file;
 
-    final String lowerName = image.name.toLowerCase();
-
-    // 🚫 BLOCK HEIC ON WEB (CRITICAL)
-    if (kIsWeb &&
-        (lowerName.endsWith('.heic') || lowerName.endsWith('.heif'))) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "HEIC images are not supported on web. Please upload JPG or PNG.",
-          ),
-        ),
+    if (isVideo) {
+      file = await picker.pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: const Duration(seconds: 30),
       );
-      return;
+    } else {
+      file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1080,
+        imageQuality: 70,
+      );
     }
 
-    final bytes = await image.readAsBytes();
-
-    setState(() {
-      _selectedImage = bytes;
-      _selectedFileName = image.name;
-    });
+    if (file != null) {
+      final bytes = await file.readAsBytes();
+      setState(() {
+        _selectedMediaBytes = bytes;
+        _isFileTypeVideo = isVideo;
+      });
+    }
   }
 
   // ===============================
-  // ⬆️ UPLOAD POST
+  // ⬆️ UPLOAD (ZERO LAG FIX)
   // ===============================
   Future<void> _upload() async {
+    // 🔥 SHOW LOADING IMMEDIATELY
+    setState(() => _isUploading = true);
+
+    // ⏳ LET UI RENDER FIRST
+    await Future.delayed(const Duration(milliseconds: 10));
+
     final user = context.read<AuthCubit>().currentUser;
 
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("User not logged in")),
-      );
+      _stopLoading("User not logged in");
+      return;
+    }
+
+    if (_selectedMediaBytes == null) {
+      _stopLoading("Please select an image or video");
       return;
     }
 
@@ -77,44 +80,34 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     if (_isDonationPost) {
       targetValue = double.tryParse(_targetController.text) ?? 0;
       if (targetValue <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Please enter a valid donation amount"),
-          ),
-        );
+        _stopLoading("Enter valid donation amount");
         return;
       }
     }
 
-    if (_selectedImage == null || _selectedFileName == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select an image")),
-      );
-      return;
+    String fileName = DateTime.now().millisecondsSinceEpoch.toString();
+    fileName += _isFileTypeVideo ? ".mp4" : ".jpg";
+
+    try {
+      await context.read<CrowdCubit>().createCrowdPost(
+            text: _captionController.text,
+            imageBytes: _selectedMediaBytes!,
+            target: targetValue,
+            uId: user.uid,
+            uName: user.username,
+            customFileName: fileName,
+          );
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      _stopLoading("Upload failed. Try again.");
     }
+  }
 
-    setState(() => _isUploading = true);
-
-    // ===============================
-    // 🧠 IMAGE PREPARATION
-    // ===============================
-    final String nameLower = _selectedFileName!.toLowerCase();
-    final bool isHeic =
-        nameLower.endsWith('.heic') || nameLower.endsWith('.heif');
-
-    // Convert ONLY on mobile
-    final Uint8List safeBytes =
-        convertToJpegIfNeeded(_selectedImage!, _selectedFileName!);
-
-    await context.read<CrowdCubit>().createCrowdPost(
-          text: _captionController.text,
-          imageBytes: safeBytes,
-          target: targetValue,
-          uId: user.uid,
-          uName: user.username,
-        );
-
-    if (mounted) Navigator.pop(context);
+  void _stopLoading(String message) {
+    setState(() => _isUploading = false);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ===============================
@@ -122,78 +115,130 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
   // ===============================
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("New Post"),
-        actions: [
-          IconButton(
-            onPressed: _isUploading ? null : _upload,
-            icon: const Icon(Icons.done),
-          )
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            GestureDetector(
-              onTap: _pickImage,
-              child: Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: _selectedImage != null
-                    ? Image.memory(
-                        _selectedImage!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.broken_image, size: 50),
-                      )
-                    : const Icon(Icons.add_a_photo, size: 50),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            SwitchListTile(
-              title: const Text(
-                "Post for Donation?",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: const Text("Enable this to ask for funds"),
-              value: _isDonationPost,
-              activeColor: Colors.green,
-              onChanged: (val) => setState(() => _isDonationPost = val),
-            ),
-
-            if (_isDonationPost) ...[
-              const SizedBox(height: 10),
-              TextField(
-                controller: _targetController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: "Target Money Needed (₹)",
-                  prefixIcon: Icon(Icons.currency_rupee),
-                  border: OutlineInputBorder(),
-                ),
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text("New Post"),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.done),
+                onPressed: _isUploading ? null : _upload,
               ),
             ],
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                // PREVIEW
+                if (_selectedMediaBytes != null)
+                  Container(
+                    height: 220,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _isFileTypeVideo
+                          ? const Center(
+                              child: Icon(Icons.videocam,
+                                  color: Colors.white, size: 50),
+                            )
+                          : Image.memory(
+                              _selectedMediaBytes!,
+                              fit: BoxFit.cover,
+                            ),
+                    ),
+                  ),
 
-            const SizedBox(height: 15),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _pickMedia(false),
+                        child: _pickerTile(
+                          icon: Icons.image,
+                          label: "Pick Image",
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _pickMedia(true),
+                        child: _pickerTile(
+                          icon: Icons.videocam,
+                          label: "Pick Video",
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
 
-            TextField(
-              controller: _captionController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: "Caption / Description",
-                border: OutlineInputBorder(),
-              ),
+                const SizedBox(height: 20),
+
+                SwitchListTile(
+                  title: const Text(
+                    "Post for Donation?",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  value: _isDonationPost,
+                  onChanged:
+                      _isUploading ? null : (v) => setState(() => _isDonationPost = v),
+                ),
+
+                if (_isDonationPost)
+                  TextField(
+                    controller: _targetController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: "Target Amount (₹)",
+                    ),
+                  ),
+
+                const SizedBox(height: 15),
+
+                TextField(
+                  controller: _captionController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: "Caption / Description",
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
+
+        // 🔥 FULLSCREEN LOADING OVERLAY (NO LAG)
+        if (_isUploading)
+          Container(
+            color: Colors.black.withOpacity(0.35),
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _pickerTile({required IconData icon, required String label}) {
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 40),
+          const SizedBox(height: 8),
+          Text(label),
+        ],
       ),
     );
   }

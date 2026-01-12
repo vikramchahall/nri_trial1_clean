@@ -1,63 +1,112 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'package:nri_trial1_clean/features/profile/domain/entities/profile_user.dart';
-import 'package:nri_trial1_clean/features/auth/presentation/cubits/auth_cubit.dart';
-
+import '../../domain/entities/profile_user.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
+import '../cubits/profile_cubit.dart';
+import '../cubits/profile_state.dart';
 import 'profile_page_content.dart';
 import 'profile_edit_page.dart';
 
-class MyProfilePage extends StatelessWidget {
+class MyProfilePage extends StatefulWidget {
   final String uid;
-
-  const MyProfilePage({
-    super.key,
-    required this.uid,
-  });
+  const MyProfilePage({super.key, required this.uid});
 
   @override
+  State<MyProfilePage> createState() => _MyProfilePageState();
+}
+
+class _MyProfilePageState extends State<MyProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+    // 🔥 ALWAYS fetch MY profile when page opens
+    context.read<ProfileCubit>().fetchUserProfile(widget.uid);
+  }
+
+  // ================= SETTINGS BOTTOM SHEET =================
+  void _showSettingsTray(BuildContext context, ProfileUser user) {
+    final authCubit = context.read<AuthCubit>();
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 15),
+          const Text(
+            "Settings",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const Divider(),
+
+          ListTile(
+            leading: const Icon(Icons.edit),
+            title: const Text("Edit Bio & Photo"),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProfileEditPage(user: user),
+                ),
+              );
+            },
+          ),
+
+          const Divider(),
+
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text("Logout", style: TextStyle(color: Colors.red)),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              authCubit.logout();
+            },
+          ),
+
+          const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+
+  // ================= UI =================
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+    return BlocBuilder<ProfileCubit, ProfileState>(
+      builder: (context, state) {
+        if (state is ProfileInitial || state is ProfileLoading) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        final user = ProfileUser.fromJson(
-          snapshot.data!.data() as Map<String, dynamic>,
-        );
+        if (state is ProfileError) {
+          return Scaffold(
+            body: Center(child: Text(state.message)),
+          );
+        }
+
+        if (state is! ProfileLoaded) {
+          return const SizedBox.shrink();
+        }
+
+        final ProfileUser user = state.profileUser;
 
         return Scaffold(
           appBar: AppBar(
             title: Text("@${user.username} (Me)"),
             actions: [
-              // 🚪 LOGOUT BUTTON
-              IconButton(
-                onPressed: () => context.read<AuthCubit>().logout(),
-                icon: const Icon(Icons.logout, color: Colors.red),
-              ),
-
-              // ⚙️ SETTINGS BUTTON
               IconButton(
                 icon: const Icon(Icons.settings),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ProfileEditPage(user: user),
-                  ),
-                ),
+                onPressed: () => _showSettingsTray(context, user),
               ),
             ],
           ),
-
-          // Shared profile content
           body: ProfilePageContent(user: user),
         );
       },

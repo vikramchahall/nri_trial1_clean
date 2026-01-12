@@ -1,44 +1,40 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 
-// 🔹 AUTH
-import 'features/auth/data/firebase_auth_repo.dart';
+// 🔹 AUTH (SUPABASE)
+import 'features/auth/data/supabase_auth_repo.dart';
 import 'features/auth/presentation/cubits/auth_cubit.dart';
 import 'features/auth/presentation/cubits/auth_states.dart';
 import 'features/auth/presentation/pages/auth_page.dart';
+import 'features/auth/presentation/pages/verification_page.dart';
+import 'features/auth/presentation/pages/reset_password_otp_page.dart';
 
-// 🔹 CROWDFUNDING
-import 'features/crowdfunding/data/firebase_crowd_repo.dart';
+// 🔹 LANGUAGE
+import 'features/auth/presentation/cubits/language_cubit.dart';
+
+// 🔹 CROWDFUNDING (SUPABASE)
+import 'features/crowdfunding/data/supabase_crowd_repo.dart';
 import 'features/crowdfunding/presentation/cubits/crowd_cubit.dart';
+
+// 🔹 PROFILE (SUPABASE)
+import 'features/profile/data/supabase_profile_repo.dart';
+import 'features/profile/presentation/cubits/profile_cubit.dart';
 
 // 🔹 STORAGE
 import 'features/storage/data/supabase_storage_repo.dart';
 
-// 🔹 PROFILE
-import 'features/profile/data/firebase_profile_repo.dart';
-import 'features/profile/presentation/cubits/profile_cubit.dart';
-
 // 🔹 HOME
 import 'features/home/presentation/pages/home_page.dart';
-
-// 🔹 FIREBASE OPTIONS
-import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Firebase init
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // ✅ Supabase init
-  await supabase.Supabase.initialize(
-    url: 'https://chpmwhtzivhcttwpjqwc.supabase.co',
+  // ✅ INITIALIZE SUPABASE
+  await supa.Supabase.initialize(
+    url: 'https://hjvsxridquolfrddlbpp.supabase.co',
     anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNocG13aHR6aXZoY3R0d3BqcXdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDk2NjAsImV4cCI6MjA4MjQyNTY2MH0.iNRfI7VXN4WsX6hMk1ubGpFZHIejKnltNY3h2o6FFHE',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqdnN4cmlkcXVvbGZyZGRsYnBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxMDMxNTEsImV4cCI6MjA4MzY3OTE1MX0.-54QtJFfCLbDQCnEaAApSFjCHm2IkIdokV2LuroevCE',
   );
 
   runApp(const MyApp());
@@ -49,32 +45,31 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CREATE REPO SINGLETONS
-    final authRepo = FirebaseAuthRepo();
-    final crowdRepo = FirebaseCrowdRepo();
-    final profileRepo = FirebaseProfileRepo();
-    final storageRepo = SupabaseStorageRepo();
-
     return MultiBlocProvider(
       providers: [
-        // 🔹 AUTH
+        // 🌐 LANGUAGE
+        BlocProvider(create: (_) => LanguageCubit()),
+
+        // 🔐 AUTH
         BlocProvider(
-          create: (_) => AuthCubit(authRepo: authRepo)..checkAuth(),
+          create: (_) => AuthCubit(
+            authRepo: SupabaseAuthRepo(),
+          )..checkAuth(),
         ),
 
-        // 🔹 CROWDFUNDING
+        // ❤️ CROWDFUNDING
         BlocProvider(
           create: (_) => CrowdCubit(
-            crowdRepo: crowdRepo,
-            storageRepo: storageRepo,
+            crowdRepo: SupabaseCrowdRepo(),
+            storageRepo: SupabaseStorageRepo(),
           ),
         ),
 
-        // 🔹 PROFILE
+        // 👤 PROFILE
         BlocProvider(
           create: (_) => ProfileCubit(
-            profileRepo: profileRepo,
-            storageRepo: storageRepo,
+            profileRepo: SupabaseProfileRepo(),
+            storageRepo: SupabaseStorageRepo(),
           ),
         ),
       ],
@@ -84,18 +79,54 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
           useMaterial3: true,
         ),
-        home: BlocBuilder<AuthCubit, AuthState>(
+
+        // 🔁 AUTH STATE HANDLING (NO LOGIN FLASH)
+        home: BlocConsumer<AuthCubit, AuthState>(
+          listener: (context, state) {
+            if (state is AuthError) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
           builder: (context, state) {
+            // ✅ 0️⃣ SPLASH / CHECKING SESSION (FIXES LOGIN FLASH)
+            if (state is AuthInitial) {
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(color: Colors.green),
+                ),
+              );
+            }
+
+            // 1️⃣ LOGGED IN
             if (state is Authenticated) {
               return const HomePage();
             }
 
+            // 2️⃣ 🔐 RESET PASSWORD (OTP SCREEN)
+            if (state is ResetPasswordOtpMode) {
+              return ResetPasswordOtpPage(email: state.email);
+            }
+
+            // 3️⃣ EMAIL VERIFICATION
+            if (state is NeedVerification) {
+              return VerificationPage(email: state.email);
+            }
+
+            // 4️⃣ LOADING (API CALLS)
             if (state is AuthLoading) {
               return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
+                body: Center(
+                  child: CircularProgressIndicator(color: Colors.green),
+                ),
               );
             }
 
+            // 5️⃣ DEFAULT → LOGIN / REGISTER
             return const AuthPage();
           },
         ),

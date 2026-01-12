@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:nri_trial1_clean/features/profile/domain/repos/profile_repo.dart';
-import 'package:nri_trial1_clean/features/storage/domain/storage_repo.dart';
-
+import '../../../storage/domain/storage_repo.dart';
+import '../../domain/repos/profile_repo.dart';
 import 'profile_state.dart';
+import '../../../crowdfunding/domain/entities/crowd_post.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
 
 class ProfileCubit extends Cubit<ProfileState> {
   final ProfileRepo profileRepo;
@@ -16,11 +18,12 @@ class ProfileCubit extends Cubit<ProfileState> {
   }) : super(ProfileInitial());
 
   // ===============================
-  // Fetch user profile
+  // 📥 FETCH USER PROFILE
   // ===============================
   Future<void> fetchUserProfile(String uid) async {
     try {
       emit(ProfileLoading());
+
       final user = await profileRepo.fetchUserProfile(uid);
 
       if (user != null) {
@@ -34,7 +37,31 @@ class ProfileCubit extends Cubit<ProfileState> {
   }
 
   // ===============================
-  // ✅ UPDATE PROFILE (BIO + IMAGE)
+  // 📦 FETCH USER POSTS (GRID)
+  // ===============================
+  Future<List<CrowdPost>> fetchUserPosts(String uid) async {
+    try {
+      final response = await Supabase.instance.client
+          .from('posts')
+          .select()
+          .eq('user_id', uid)
+          .order('timestamp', ascending: false);
+
+      return (response as List)
+          .map(
+            (json) => CrowdPost.fromJson(
+              json,
+              json['id'].toString(),
+            ),
+          )
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // ===============================
+  // ✏️ UPDATE PROFILE (BIO + IMAGE)
   // ===============================
   Future<void> updateProfile({
     required String uid,
@@ -44,31 +71,26 @@ class ProfileCubit extends Cubit<ProfileState> {
     try {
       emit(ProfileLoading());
 
-      String? newImageUrl;
+      String? imageLink;
 
-      // 1️⃣ Upload image to Supabase if picked
       if (imageBytes != null) {
-        newImageUrl = await storageRepo.uploadProfileImageMobile(
+        imageLink = await storageRepo.uploadProfileImageMobile(
           imageBytes,
-          "profile_$uid.png", // ✅ IMPORTANT: extension
+          "profile_$uid.png",
         );
       }
 
-      // 2️⃣ Fetch current profile
       final currentProfile = await profileRepo.fetchUserProfile(uid);
 
       if (currentProfile != null) {
-        // 3️⃣ Merge updated fields
-        final updatedProfile = currentProfile.copyWith(
-          newBio: newBio ?? currentProfile.bio,
-          newProfileImageUrl:
-              newImageUrl ?? currentProfile.profileImageUrl,
+        final updatedProfile = currentProfile.copyWithProfile(
+          bio: newBio ?? currentProfile.bio,
+          profileImageUrl:
+              imageLink ?? currentProfile.profileImageUrl,
         );
 
-        // 4️⃣ Save to Firestore
         await profileRepo.updateProfile(updatedProfile);
 
-        // 5️⃣ Re-fetch from DB (single source of truth)
         await fetchUserProfile(uid);
       }
     } catch (e) {
@@ -77,17 +99,25 @@ class ProfileCubit extends Cubit<ProfileState> {
   }
 
   // ===============================
-  // FOLLOW / UNFOLLOW
+  // 👥 FOLLOW / UNFOLLOW (FINAL, CORRECT)
   // ===============================
   Future<void> toggleFollow(
     String currentUid,
     String targetUid,
+    AuthCubit authCubit,
   ) async {
     try {
+      // 1️⃣ Update follows table
       await profileRepo.toggleFollow(currentUid, targetUid);
 
-      // 🔄 Refresh target profile
-      fetchUserProfile(targetUid);
+      // 2️⃣ Refresh TARGET profile
+      await fetchUserProfile(targetUid);
+
+      // 3️⃣ Refresh AUTH (following list)
+      await authCubit.refreshCurrentUser();
+
+      // 4️⃣ 🔥 Refresh MY PROFILE (fixes stale counts)
+      await fetchUserProfile(currentUid);
     } catch (e) {
       emit(ProfileError(e.toString()));
     }

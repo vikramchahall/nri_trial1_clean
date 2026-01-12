@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'user_profile_page.dart';
 
 class FollowerListPage extends StatelessWidget {
   final List<String> uids;
@@ -20,23 +22,47 @@ class FollowerListPage extends StatelessWidget {
           : ListView.builder(
               itemCount: uids.length,
               itemBuilder: (context, index) {
-                return FutureBuilder<DocumentSnapshot>(
-                  future: FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(uids[index])
-                      .get(),
+                return FutureBuilder<Map<String, dynamic>>(
+                  future: Supabase.instance.client
+                      .from('profiles')
+                      .select()
+                      .eq('id', uids[index])
+                      .single(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData || !snapshot.data!.exists) {
-                      return const ListTile(title: Text("Loading..."));
+                    if (snapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const ListTile(
+                        title: Text("Loading..."),
+                      );
                     }
 
-                    final data =
-                        snapshot.data!.data() as Map<String, dynamic>;
+                    if (!snapshot.hasData) {
+                      return const SizedBox.shrink();
+                    }
+
+                    final user = snapshot.data!;
+                    final imageUrl =
+                        user['profile_image_url'] as String? ?? '';
 
                     return ListTile(
-                      leading:
-                          const CircleAvatar(child: Icon(Icons.person)),
-                      title: Text("@${data['username']}"),
+                      leading: CircleAvatar(
+                        backgroundImage:
+                            imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
+                        child: imageUrl.isEmpty
+                            ? const Icon(Icons.person)
+                            : null,
+                      ),
+                      title: Text("@${user['username']}"),
+                      onTap: () {
+                        // ✅ ONLY THIS — normal push
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                UserProfilePage(uid: user['id']),
+                          ),
+                        );
+                      },
                     );
                   },
                 );

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/foundation.dart'; // kIsWeb
 
 import '../cubits/auth_cubit.dart';
 import '../cubits/auth_states.dart';
 import '../../../../components/my_button.dart';
 import '../../../../components/my_text_field.dart';
+
+// 🔹 LANGUAGE
+import 'package:nri_trial1_clean/features/auth/presentation/cubits/language_cubit.dart';
+
 
 class RegisterPage extends StatefulWidget {
   final void Function()? onTap;
@@ -19,106 +22,91 @@ class _RegisterPageState extends State<RegisterPage> {
   // ================= CONTROLLERS =================
   final emailController = TextEditingController();
   final pwController = TextEditingController();
+  final confirmPwController = TextEditingController();
   final usernameController = TextEditingController();
   final phoneController = TextEditingController();
   final cityController = TextEditingController();
   final townController = TextEditingController();
-  final otpController = TextEditingController();
+  final blockController = TextEditingController();
+  final panchayatIdController = TextEditingController();
 
-  // ================= STATE =================
-  String selectedUserType = 'Sarpanch';
-  bool isOtpSent = false;
+  String selectedUserType = 'Pind';
 
-  // ================= OTP HANDLES =================
-  dynamic webConfirmationResult;     // Web
-  String mobileVerificationId = "";  // Android / iOS
-
-  @override
-  void dispose() {
-    emailController.dispose();
-    pwController.dispose();
-    usernameController.dispose();
-    phoneController.dispose();
-    cityController.dispose();
-    townController.dispose();
-    otpController.dispose();
-    super.dispose();
-  }
-
-  // ================= STEP 1: REGISTER / SEND OTP =================
-  void onRegisterTapped() async {
+  // ================= REGISTER =================
+  void register() {
     if (usernameController.text.isEmpty ||
         emailController.text.isEmpty ||
+        phoneController.text.isEmpty ||
         pwController.text.isEmpty) {
-      _showError("Please fill all basic details");
+      _showError("Please fill all details");
       return;
     }
 
-    if (selectedUserType == 'Sarpanch') {
-      if (phoneController.text.isEmpty ||
-          cityController.text.isEmpty ||
-          townController.text.isEmpty) {
-        _showError("Phone, City, and Town are required for Sarpanch");
-        return;
-      }
-
-      try {
-        final result = await context
-            .read<AuthCubit>()
-            .authRepo
-            .sendOtp(phoneController.text);
-
-        setState(() {
-          if (kIsWeb) {
-            webConfirmationResult = result;
-          } else {
-            mobileVerificationId = result;
-          }
-          isOtpSent = true;
-        });
-      } catch (e) {
-        _showError(e.toString());
-      }
-    } else {
-      // ✅ SUPPORTER REGISTRATION (NO OTP)
-      context.read<AuthCubit>().registerSimple(
-            email: emailController.text,
-            password: pwController.text,
-            username: usernameController.text,
-          );
-    }
-  }
-
-  // ================= STEP 2: VERIFY OTP =================
-  void verifySarpanch() {
-    if (otpController.text.isEmpty) {
-      _showError("Please enter OTP");
+    if (pwController.text != confirmPwController.text) {
+      _showError("Passwords do not match");
       return;
     }
 
-    context.read<AuthCubit>().registerSarpanchVerified(
-          email: emailController.text,
+    context.read<AuthCubit>().registerUser(
+          email: emailController.text.trim(),
           password: pwController.text,
-          username: usernameController.text,
-          phone: phoneController.text,
-          city: cityController.text,
-          town: townController.text,
-          otp: otpController.text,
-          webResult: webConfirmationResult,
-          vId: mobileVerificationId,
+          username: usernameController.text.trim(),
+
+          userType: selectedUserType,
+          city: cityController.text.trim(),
+          town: townController.text.trim(),
+          block: blockController.text.trim(),
+          panchayatId: panchayatIdController.text.trim(),
         );
   }
 
+  // ================= ERROR HANDLER =================
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
+        content: Text(msg.replaceAll("Exception: ", "")),
         backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
+  // ================= LANGUAGE DIALOG =================
+  void _showLanguageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Select Language / भाषा चुनें"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text("English"),
+              onTap: () {
+                context.read<LanguageCubit>().changeLanguage(AppLanguage.english);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text("हिंदी"),
+              onTap: () {
+                context.read<LanguageCubit>().changeLanguage(AppLanguage.hindi);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text("ਪੰਜਾਬੀ"),
+              onTap: () {
+                context.read<LanguageCubit>().changeLanguage(AppLanguage.punjabi);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
@@ -128,121 +116,141 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       },
       child: Scaffold(
+        // ✅ FLOATING LANGUAGE BUTTON
+        floatingActionButton: FloatingActionButton(
+          mini: true,
+          backgroundColor: Colors.white,
+          onPressed: () => _showLanguageDialog(context),
+          child: const Icon(Icons.translate, color: Colors.green),
+        ),
         body: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(25),
             child: Column(
               children: [
-                const Icon(Icons.account_balance,
-                    size: 60, color: Colors.green),
+                const Icon(
+                  Icons.account_balance,
+                  size: 60,
+                  color: Colors.green,
+                ),
                 const SizedBox(height: 20),
+
                 const Text(
                   "CREATE ACCOUNT",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
                 const SizedBox(height: 25),
 
-                // ================= FORM =================
-                if (!isOtpSent) ...[
-                  ToggleButtons(
-                    isSelected: [
-                      selectedUserType == 'Sarpanch',
-                      selectedUserType == 'Supporter'
-                    ],
-                    onPressed: (index) {
-                      setState(() {
-                        selectedUserType =
-                            index == 0 ? 'Sarpanch' : 'Supporter';
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(10),
-                    children: const [
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
-                        child: Text("Sarpanch"),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
-                        child: Text("Supporter"),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 25),
-
-                  MyTextField(
-                    controller: usernameController,
-                    hintText: "Unique Username",
-                    obscureText: false,
-                  ),
-                  const SizedBox(height: 10),
-
-                  MyTextField(
-                    controller: emailController,
-                    hintText: "Email",
-                    obscureText: false,
-                  ),
-                  const SizedBox(height: 10),
-
-                  MyTextField(
-                    controller: pwController,
-                    hintText: "Password",
-                    obscureText: true,
-                  ),
-
-                  if (selectedUserType == 'Sarpanch') ...[
-                    const SizedBox(height: 10),
-                    MyTextField(
-                      controller: phoneController,
-                      hintText: "10-Digit Mobile Number",
-                      obscureText: false,
+                ToggleButtons(
+                  isSelected: [
+                    selectedUserType == 'Pind',
+                    selectedUserType == 'User'
+                  ],
+                  onPressed: (index) {
+                    setState(() {
+                      selectedUserType =
+                          index == 0 ? 'Pind' : 'User';
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  children: const [
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      child: Text("Pind"),
                     ),
-                    const SizedBox(height: 10),
-                    MyTextField(
-                      controller: cityController,
-                      hintText: "City / District",
-                      obscureText: false,
-                    ),
-                    const SizedBox(height: 10),
-                    MyTextField(
-                      controller: townController,
-                      hintText: "Town / Village",
-                      obscureText: false,
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      child: Text("User"),
                     ),
                   ],
+                ),
+                const SizedBox(height: 25),
 
-                  const SizedBox(height: 25),
-                  MyButton(
-                    onTap: onRegisterTapped,
-                    text: selectedUserType == 'Sarpanch'
-                        ? "Verify Mobile (OTP)"
-                        : "Register",
-                  ),
-                ],
+                MyTextField(
+                  controller: usernameController,
+                  hintText: "Unique Username",
+                  obscureText: false,
+                ),
+                const SizedBox(height: 10),
 
-                // ================= OTP =================
-                if (isOtpSent) ...[
-                  const Text("Enter the OTP sent to your phone"),
-                  const SizedBox(height: 15),
+                MyTextField(
+                  controller: emailController,
+                  hintText: "Email",
+                  obscureText: false,
+                ),
+                const SizedBox(height: 10),
+
+                MyTextField(
+                  controller: phoneController,
+                  hintText: "Phone Number",
+                  obscureText: false,
+                ),
+                const SizedBox(height: 10),
+
+                MyTextField(
+                  controller: pwController,
+                  hintText: "Password",
+                  obscureText: true,
+                ),
+                const SizedBox(height: 10),
+
+                MyTextField(
+                  controller: confirmPwController,
+                  hintText: "Confirm Password",
+                  obscureText: true,
+                ),
+
+                if (selectedUserType == 'Pind') ...[
+                  const SizedBox(height: 10),
                   MyTextField(
-                    controller: otpController,
-                    hintText: "6-Digit OTP",
+                    controller: panchayatIdController,
+                    hintText: "Panchayat ID",
                     obscureText: false,
                   ),
-                  const SizedBox(height: 20),
-                  MyButton(
-                    onTap: verifySarpanch,
-                    text: "Complete Registration",
+                  const SizedBox(height: 10),
+                  MyTextField(
+                    controller: blockController,
+                    hintText: "Block Name",
+                    obscureText: false,
                   ),
-                  TextButton(
-                    onPressed: () => setState(() => isOtpSent = false),
-                    child: const Text("Go Back"),
+                  const SizedBox(height: 10),
+                  MyTextField(
+                    controller: cityController,
+                    hintText: "City",
+                    obscureText: false,
+                  ),
+                  const SizedBox(height: 10),
+                  MyTextField(
+                    controller: townController,
+                    hintText: "Town / Village",
+                    obscureText: false,
                   ),
                 ],
+
+                const SizedBox(height: 25),
+                MyButton(
+                  onTap: register,
+                  text: "Register",
+                ),
+
+                const SizedBox(height: 10),
+                const Text(
+                  "After registering, verify your email to continue.\n"
+                  "Check Spam or Promotions if needed.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
 
                 const SizedBox(height: 20),
                 GestureDetector(
                   onTap: widget.onTap,
-                  child: const Text("Already a member? Login"),
+                  child: const Text("Back to Login"),
                 ),
               ],
             ),

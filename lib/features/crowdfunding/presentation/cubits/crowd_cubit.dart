@@ -30,35 +30,35 @@ class CrowdCubit extends Cubit<CrowdState> {
   }
 
   // ===============================
-  // 🆕 CREATE POST
+  // 🆕 CREATE POST (FIXED)
   // ===============================
   Future<void> createCrowdPost({
     required String text,
-    required Uint8List imageBytes, // ALREADY SAFE (JPG)
+    required Uint8List imageBytes,
     required double target,
     required String uId,
     required String uName,
+    required String customFileName, // ✅ NEW
   }) async {
     try {
       emit(CrowdUploading());
 
+      // ✅ SAFETY: put files inside user folder
       final safeUser = uName
           .toLowerCase()
           .replaceAll('@', '_')
           .replaceAll('.', '_');
 
-      // 🔥 ALWAYS SAVE AS JPG (SAFE FOR ALL PLATFORMS)
-      final String filePath =
-          "$safeUser/${DateTime.now().millisecondsSinceEpoch}.jpg";
+      final String filePath = "$safeUser/$customFileName";
 
-      final imageUrl =
-          await storageRepo.uploadPostImageMobile(
+      // ✅ USE PASSED FILENAME (NO HARDCODED .JPG)
+      final imageUrl = await storageRepo.uploadPostImageMobile(
         imageBytes,
         filePath,
       );
 
       if (imageUrl == null) {
-        emit(CrowdError("Image upload failed"));
+        emit(CrowdError("Media upload failed"));
         return;
       }
 
@@ -71,6 +71,7 @@ class CrowdCubit extends Cubit<CrowdState> {
         timestamp: DateTime.now(),
         targetAmount: target,
         raisedAmount: 0,
+        likes: [],
       );
 
       await crowdRepo.createPost(post);
@@ -83,22 +84,7 @@ class CrowdCubit extends Cubit<CrowdState> {
   // ===============================
   // 💰 DONATION
   // ===============================
-  Future<void> donate(
-    String crowdId,
-    String donorName,
-    double amount,
-  ) async {
-    try {
-      await crowdRepo.donateToPost(
-        crowdId,
-        donorName,
-        amount,
-      );
-      await fetchAllCrowds();
-    } catch (e) {
-      emit(CrowdError("Donation failed"));
-    }
-  }
+
 
   // ===============================
   // 🗑 DELETE POST
@@ -135,6 +121,50 @@ class CrowdCubit extends Cubit<CrowdState> {
       await crowdRepo.deleteComment(postId, commentId);
     } catch (e) {
       emit(CrowdError(e.toString()));
+    }
+  }
+
+  // ===============================
+  // ❤️ LIKE / UNLIKE (OPTIMISTIC)
+  // ===============================
+  Future<void> toggleLike(String postId, String userId) async {
+    if (state is! CrowdLoaded) return;
+
+    final currentState = state as CrowdLoaded;
+    final posts = List<CrowdPost>.from(currentState.crowds);
+
+    final index = posts.indexWhere((p) => p.id == postId);
+    if (index == -1) return;
+
+    final post = posts[index];
+    final isLiked = post.likes.contains(userId);
+
+    final updatedLikes = List<String>.from(post.likes);
+    if (isLiked) {
+      updatedLikes.remove(userId);
+    } else {
+      updatedLikes.add(userId);
+    }
+
+    final updatedPost = CrowdPost(
+      id: post.id,
+      userId: post.userId,
+      userName: post.userName,
+      text: post.text,
+      imageUrl: post.imageUrl,
+      timestamp: post.timestamp,
+      targetAmount: post.targetAmount,
+      raisedAmount: post.raisedAmount,
+      likes: updatedLikes,
+    );
+
+    posts[index] = updatedPost;
+    emit(CrowdLoaded(posts));
+
+    try {
+      await crowdRepo.toggleLikePost(postId, userId);
+    } catch (_) {
+      // optional rollback ignored
     }
   }
 }

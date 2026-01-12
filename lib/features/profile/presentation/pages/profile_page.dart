@@ -33,40 +33,47 @@ class _ProfilePageState extends State<ProfilePage> {
             appBar: AppBar(
               title: Text("@${user.username}"),
               actions: [
-                // Edit button
                 IconButton(
+                  icon: const Icon(Icons.settings),
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
-                          ProfileEditPage(user: user),
+                      builder: (context) => ProfileEditPage(user: user),
                     ),
                   ),
-                  icon: const Icon(Icons.settings),
-                )
+                ),
               ],
             ),
             body: Column(
               children: [
                 const SizedBox(height: 25),
 
-                // Profile Pic Placeholder
+                // ✅ PROFILE IMAGE (CACHE-BUSTED)
                 Center(
-                  child: Container(
-                    height: 120,
-                    width: 120,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      shape: BoxShape.circle,
+                  child: ClipOval(
+                    child: Image.network(
+                      // Cache buster forces browser refresh
+                      "${user.profileImageUrl}?v=${DateTime.now().millisecondsSinceEpoch}",
+                      height: 120,
+                      width: 120,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        height: 120,
+                        width: 120,
+                        color: Colors.grey.shade300,
+                        child: const Icon(
+                          Icons.person,
+                          size: 72,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ),
-                    child:
-                        const Icon(Icons.person, size: 72, color: Colors.grey),
                   ),
                 ),
 
                 const SizedBox(height: 25),
 
-                // Role Badge
+                // ROLE BADGE
                 Text(
                   user.isAdmin
                       ? "VILLAGE HEAD"
@@ -84,12 +91,17 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.location_on,
-                            size: 14, color: Colors.grey),
+                        const Icon(
+                          Icons.location_on,
+                          size: 14,
+                          color: Colors.grey,
+                        ),
                         Text(
                           " ${user.town}, ${user.city}",
                           style: const TextStyle(
-                              color: Colors.grey, fontSize: 13),
+                            color: Colors.grey,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -97,24 +109,25 @@ class _ProfilePageState extends State<ProfilePage> {
 
                 const SizedBox(height: 25),
 
-                // Bio Box
+                // BIO
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 25.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 25),
                   child: MyBioBox(text: user.bio),
                 ),
               ],
             ),
           );
-        } else if (state is ProfileLoading) {
+        }
+
+        if (state is ProfileLoading) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
-        } else {
-          return const Scaffold(
-            body: Center(child: Text("Profile error")),
-          );
         }
+
+        return const Scaffold(
+          body: Center(child: Text("Profile error")),
+        );
       },
     );
   }
