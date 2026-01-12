@@ -4,6 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/profile_user.dart';
 import '../../../../components/my_bio_box.dart';
 
+// ✅ NEW SMART MEDIA TILE
+import '../../../../components/my_media_grid_tile.dart';
+
 // FOLLOWERS / FOLLOWING
 import 'follower_list_page.dart';
 
@@ -26,21 +29,19 @@ class ProfilePageContent extends StatelessWidget {
 
         // ================= PROFILE IMAGE =================
         Center(
-          child: Container(
-            height: 90,
-            width: 90,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              shape: BoxShape.circle,
+          child: ClipOval(
+            child: Image.network(
+              "${user.profileImageUrl}?v=${DateTime.now().millisecondsSinceEpoch}",
+              height: 90,
+              width: 90,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                height: 90,
+                width: 90,
+                color: Colors.grey.shade200,
+                child: const Icon(Icons.person, size: 40, color: Colors.grey),
+              ),
             ),
-            child: user.profileImageUrl.isNotEmpty
-                ? ClipOval(
-                    child: Image.network(
-                      user.profileImageUrl,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : const Icon(Icons.person, size: 40, color: Colors.grey),
           ),
         ),
 
@@ -105,7 +106,7 @@ class ProfilePageContent extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        // ================= POSTS GRID (MODERN) =================
+        // ================= POSTS GRID =================
         Expanded(
           child: FutureBuilder<List<CrowdPost>>(
             future: context.read<ProfileCubit>().fetchUserPosts(user.uid),
@@ -123,12 +124,11 @@ class ProfilePageContent extends StatelessWidget {
               final posts = snapshot.data!;
 
               return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(2),
                 gridDelegate:
                     const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
+                  childAspectRatio: 1.0,
                   crossAxisSpacing: 2,
                   mainAxisSpacing: 2,
                 ),
@@ -137,23 +137,20 @@ class ProfilePageContent extends StatelessWidget {
                   final post = posts[index];
 
                   return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PostDetailPage(post: post),
-                        ),
-                      );
-                    },
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PostDetailPage(post: post),
+                      ),
+                    ),
                     child: Container(
-                      color: Colors.grey.shade200,
-                      child: Image.network(
-                        post.imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.broken_image,
-                          color: Colors.grey,
-                        ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      // ✅ SMART MEDIA TILE (IMAGE + VIDEO SUPPORT)
+                      child: MyMediaGridTile(
+                        url: post.imageUrl,
                       ),
                     ),
                   );

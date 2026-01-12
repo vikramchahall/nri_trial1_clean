@@ -22,6 +22,7 @@ class ProfileCubit extends Cubit<ProfileState> {
   Future<void> fetchUserProfile(String uid) async {
     try {
       emit(ProfileLoading());
+
       final user = await profileRepo.fetchUserProfile(uid);
 
       if (user != null) {
@@ -35,7 +36,7 @@ class ProfileCubit extends Cubit<ProfileState> {
   }
 
   // ===============================
-  // ✅ FIX: FETCH USER POSTS (GRID)
+  // 📦 FETCH USER POSTS (GRID)
   // ===============================
   Future<List<CrowdPost>> fetchUserPosts(String uid) async {
     try {
@@ -69,26 +70,32 @@ class ProfileCubit extends Cubit<ProfileState> {
     try {
       emit(ProfileLoading());
 
-      String? newImageUrl;
+      String? imageLink;
 
-      // Upload image if provided
+      // 📤 1️⃣ Upload image if provided
       if (imageBytes != null) {
-        newImageUrl = await storageRepo.uploadProfileImageMobile(
+        imageLink = await storageRepo.uploadProfileImageMobile(
           imageBytes,
           "profile_$uid.png",
         );
       }
 
+      // 📥 2️⃣ Fetch current profile
       final currentProfile = await profileRepo.fetchUserProfile(uid);
 
       if (currentProfile != null) {
+        // ✍️ 3️⃣ Create updated profile with NEW image link
         final updatedProfile = currentProfile.copyWith(
           newBio: newBio ?? currentProfile.bio,
+          // If user didn’t pick a new image, keep the old one
           newProfileImageUrl:
-              newImageUrl ?? currentProfile.profileImageUrl,
+              imageLink ?? currentProfile.profileImageUrl,
         );
 
+        // 💾 4️⃣ Update profile in Supabase
         await profileRepo.updateProfile(updatedProfile);
+
+        // 🔁 5️⃣ Force refresh UI with latest data
         await fetchUserProfile(uid);
       }
     } catch (e) {
@@ -97,15 +104,19 @@ class ProfileCubit extends Cubit<ProfileState> {
   }
 
   // ===============================
-  // 👥 FOLLOW / UNFOLLOW
+  // 👥 FOLLOW / UNFOLLOW (PHASE 1 FIX)
   // ===============================
   Future<void> toggleFollow(
     String currentUid,
     String targetUid,
   ) async {
     try {
+      // 1️⃣ Perform DB change
       await profileRepo.toggleFollow(currentUid, targetUid);
-      fetchUserProfile(targetUid);
+
+      // 2️⃣ THE FIX: Immediately re-fetch profile
+      // Forces Cubit to emit fresh ProfileLoaded state
+      await fetchUserProfile(targetUid);
     } catch (e) {
       emit(ProfileError(e.toString()));
     }

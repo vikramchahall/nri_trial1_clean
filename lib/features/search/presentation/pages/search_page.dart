@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:nri_trial1_clean/utlis/url_helper.dart';
+
+
 
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 import '../../../profile/presentation/pages/user_profile_page.dart';
+
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -115,15 +119,18 @@ class _SearchPageState extends State<SearchPage> {
         final imageUrl = userData['profile_image_url'];
 
         return ListTile(
-          leading: CircleAvatar(
-            backgroundImage:
-                (imageUrl != null && imageUrl.toString().isNotEmpty)
-                    ? NetworkImage(imageUrl)
-                    : null,
-            child: (imageUrl == null || imageUrl.toString().isEmpty)
-                ? const Icon(Icons.person)
-                : null,
-          ),
+        leading: CircleAvatar(
+  backgroundImage:
+      (imageUrl != null && imageUrl.toString().isNotEmpty)
+          ? NetworkImage(
+              UrlHelper.getRefreshUrl(imageUrl),
+            )
+          : null,
+  child: (imageUrl == null || imageUrl.toString().isEmpty)
+      ? const Icon(Icons.person)
+      : null,
+),
+
           title: Text("@${userData['username']}"),
           subtitle: Text(
             userData['is_admin'] == true ? "Village Head" : "Supporter",

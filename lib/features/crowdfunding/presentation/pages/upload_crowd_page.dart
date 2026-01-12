@@ -18,18 +18,18 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
   final TextEditingController _targetController = TextEditingController();
 
   Uint8List? _selectedMediaBytes;
-
-  // 🔑 TRACK MEDIA TYPE
   bool _isFileTypeVideo = false;
 
   bool _isUploading = false;
   bool _isDonationPost = false;
 
   // ===============================
-  // 📷 PICK IMAGE OR VIDEO
+  // 📷 PICK MEDIA
   // ===============================
   Future<void> _pickMedia(bool isVideo) async {
-    final ImagePicker picker = ImagePicker();
+    if (_isUploading) return;
+
+    final picker = ImagePicker();
     XFile? file;
 
     if (isVideo) {
@@ -49,28 +49,30 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
       final bytes = await file.readAsBytes();
       setState(() {
         _selectedMediaBytes = bytes;
-        _isFileTypeVideo = isVideo; // ✅ SAVE TYPE
+        _isFileTypeVideo = isVideo;
       });
     }
   }
 
   // ===============================
-  // ⬆️ UPLOAD POST (FIXED)
+  // ⬆️ UPLOAD (ZERO LAG FIX)
   // ===============================
   Future<void> _upload() async {
+    // 🔥 SHOW LOADING IMMEDIATELY
+    setState(() => _isUploading = true);
+
+    // ⏳ LET UI RENDER FIRST
+    await Future.delayed(const Duration(milliseconds: 10));
+
     final user = context.read<AuthCubit>().currentUser;
 
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("User not logged in")),
-      );
+      _stopLoading("User not logged in");
       return;
     }
 
     if (_selectedMediaBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select an image or video")),
-      );
+      _stopLoading("Please select an image or video");
       return;
     }
 
@@ -78,33 +80,34 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     if (_isDonationPost) {
       targetValue = double.tryParse(_targetController.text) ?? 0;
       if (targetValue <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Enter valid donation amount")),
-        );
+        _stopLoading("Enter valid donation amount");
         return;
       }
     }
 
-    setState(() => _isUploading = true);
-
-    // ✅ DYNAMIC FILE EXTENSION (THE FIX)
     String fileName = DateTime.now().millisecondsSinceEpoch.toString();
-    if (_isFileTypeVideo) {
-      fileName += ".mp4";
-    } else {
-      fileName += ".jpg";
+    fileName += _isFileTypeVideo ? ".mp4" : ".jpg";
+
+    try {
+      await context.read<CrowdCubit>().createCrowdPost(
+            text: _captionController.text,
+            imageBytes: _selectedMediaBytes!,
+            target: targetValue,
+            uId: user.uid,
+            uName: user.username,
+            customFileName: fileName,
+          );
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      _stopLoading("Upload failed. Try again.");
     }
+  }
 
-    await context.read<CrowdCubit>().createCrowdPost(
-          text: _captionController.text,
-          imageBytes: _selectedMediaBytes!,
-          target: targetValue,
-          uId: user.uid,
-          uName: user.username,
-          customFileName: fileName, // ✅ PASSED TO CUBIT
-        );
-
-    if (mounted) Navigator.pop(context);
+  void _stopLoading(String message) {
+    setState(() => _isUploading = false);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ===============================
@@ -112,87 +115,113 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
   // ===============================
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("New Post"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.done),
-            onPressed: _isUploading ? null : _upload,
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text("New Post"),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.done),
+                onPressed: _isUploading ? null : _upload,
+              ),
+            ],
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // MEDIA PICKER
-            Row(
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
               children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _pickMedia(false),
-                    child: _pickerTile(
-                      icon: Icons.image,
-                      label: "Pick Image",
+                // PREVIEW
+                if (_selectedMediaBytes != null)
+                  Container(
+                    height: 220,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _isFileTypeVideo
+                          ? const Center(
+                              child: Icon(Icons.videocam,
+                                  color: Colors.white, size: 50),
+                            )
+                          : Image.memory(
+                              _selectedMediaBytes!,
+                              fit: BoxFit.cover,
+                            ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _pickMedia(true),
-                    child: _pickerTile(
-                      icon: Icons.videocam,
-                      label: "Pick Video",
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _pickMedia(false),
+                        child: _pickerTile(
+                          icon: Icons.image,
+                          label: "Pick Image",
+                        ),
+                      ),
                     ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _pickMedia(true),
+                        child: _pickerTile(
+                          icon: Icons.videocam,
+                          label: "Pick Video",
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                SwitchListTile(
+                  title: const Text(
+                    "Post for Donation?",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  value: _isDonationPost,
+                  onChanged:
+                      _isUploading ? null : (v) => setState(() => _isDonationPost = v),
+                ),
+
+                if (_isDonationPost)
+                  TextField(
+                    controller: _targetController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: "Target Amount (₹)",
+                    ),
+                  ),
+
+                const SizedBox(height: 15),
+
+                TextField(
+                  controller: _captionController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: "Caption / Description",
                   ),
                 ),
               ],
             ),
-
-            const SizedBox(height: 20),
-
-            // DONATION SWITCH
-            SwitchListTile(
-              title: const Text(
-                "Post for Donation?",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: const Text("Enable this to ask for funds"),
-              value: _isDonationPost,
-              onChanged: (val) =>
-                  setState(() => _isDonationPost = val),
-              activeColor: Colors.green,
-            ),
-
-            if (_isDonationPost) ...[
-              const SizedBox(height: 10),
-              TextField(
-                controller: _targetController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: "Target Amount (₹)",
-                  prefixIcon: Icon(Icons.currency_rupee),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 15),
-
-            // CAPTION
-            TextField(
-              controller: _captionController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: "Caption / Description",
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+
+        // 🔥 FULLSCREEN LOADING OVERLAY (NO LAG)
+        if (_isUploading)
+          Container(
+            color: Colors.black.withOpacity(0.35),
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+          ),
+      ],
     );
   }
 

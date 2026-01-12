@@ -84,18 +84,7 @@ class CrowdCubit extends Cubit<CrowdState> {
   // ===============================
   // 💰 DONATION
   // ===============================
-  Future<void> donate(
-    String crowdId,
-    String donorName,
-    double amount,
-  ) async {
-    try {
-      await crowdRepo.donateToPost(crowdId, donorName, amount);
-      fetchAllCrowds();
-    } catch (e) {
-      emit(CrowdError(e.toString()));
-    }
-  }
+
 
   // ===============================
   // 🗑 DELETE POST

@@ -31,7 +31,7 @@ class SupabaseStorageRepo implements StorageRepo {
   }
 
   // ===============================
-  // 🔁 SHARED UPLOAD HELPER (SMART VERSION)
+  // 🔁 SHARED UPLOAD HELPER
   // ===============================
   Future<String?> _upload(
     Uint8List originalBytes,
@@ -41,8 +41,7 @@ class SupabaseStorageRepo implements StorageRepo {
     try {
       final lower = fileName.toLowerCase();
 
-      // 1️⃣ SMART CONTENT TYPE DETECTION
-      String contentType = 'image/jpeg'; // default
+      String contentType = 'image/jpeg';
       bool isVideo = false;
 
       if (lower.endsWith(".mp4")) {
@@ -53,15 +52,11 @@ class SupabaseStorageRepo implements StorageRepo {
         isVideo = true;
       } else if (lower.endsWith(".png")) {
         contentType = 'image/png';
-      } else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
-        contentType = 'image/jpeg';
       }
 
-      // 2️⃣ BYTES (DO NOT COMPRESS VIDEOS)
       final Uint8List bytes =
           isVideo ? originalBytes : await _compressImage(originalBytes);
 
-      // 3️⃣ UPLOAD TO SUPABASE WITH MIME
       await _supabase.storage.from(bucket).uploadBinary(
             fileName,
             bytes,
@@ -71,27 +66,15 @@ class SupabaseStorageRepo implements StorageRepo {
             ),
           );
 
-      // 4️⃣ GET PUBLIC URL
-      final String publicUrl =
+      final publicUrl =
           _supabase.storage.from(bucket).getPublicUrl(fileName);
 
-      // Cache busting to avoid browser issues
       return "$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}";
     } catch (e) {
       debugPrint("❌ Supabase Upload Error: $e");
       return null;
     }
   }
-
-  // ===============================
-  // 📱 MOBILE
-  // ===============================
-  @override
-  Future<String?> uploadPostImageMobile(
-    Uint8List bytes,
-    String fileName,
-  ) =>
-      _upload(bytes, 'post_images', fileName);
 
   @override
   Future<String?> uploadProfileImageMobile(
@@ -100,20 +83,24 @@ class SupabaseStorageRepo implements StorageRepo {
   ) =>
       _upload(bytes, 'profile_images', fileName);
 
-  // ===============================
-  // 🌐 WEB
-  // ===============================
-  @override
-  Future<String?> uploadPostImageWeb(
-    Uint8List bytes,
-    String fileName,
-  ) =>
-      _upload(bytes, 'post_images', fileName);
-
   @override
   Future<String?> uploadProfileImageWeb(
     Uint8List bytes,
     String fileName,
   ) =>
       _upload(bytes, 'profile_images', fileName);
+
+  @override
+  Future<String?> uploadPostImageMobile(
+    Uint8List bytes,
+    String fileName,
+  ) =>
+      _upload(bytes, 'post_images', fileName);
+
+  @override
+  Future<String?> uploadPostImageWeb(
+    Uint8List bytes,
+    String fileName,
+  ) =>
+      _upload(bytes, 'post_images', fileName);
 }

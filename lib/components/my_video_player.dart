@@ -17,14 +17,13 @@ class _MyVideoPlayerState extends State<MyVideoPlayer> {
   void initState() {
     super.initState();
 
-    // ✅ MODERN + COMPATIBLE CONTROLLER
     _controller = VideoPlayerController.networkUrl(
       Uri.parse(widget.videoUrl),
     )
       ..initialize().then((_) {
         if (!mounted) return;
         setState(() {
-          _isInitialized = true; // show first frame
+          _isInitialized = true;
         });
       }).catchError((error) {
         debugPrint("🎥 Video Player Error: $error");
@@ -33,47 +32,52 @@ class _MyVideoPlayerState extends State<MyVideoPlayer> {
 
   @override
   void dispose() {
-    _controller.dispose(); // 🔴 IMPORTANT: free resources
+    _controller.dispose(); // ✅ stops video when widget is removed
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_isInitialized) {
-      return Container(
-        height: 350,
-        color: Colors.black12,
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
+      return const Center(
+        child: CircularProgressIndicator(strokeWidth: 2),
       );
     }
 
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _controller.value.isPlaying
-              ? _controller.pause()
-              : _controller.play();
-        });
+        if (_controller.value.isPlaying) {
+          _controller.pause();
+        } else {
+          _controller.play();
+        }
+        setState(() {});
       },
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // 🎥 VIDEO FRAME
-          AspectRatio(
-            aspectRatio: _controller.value.aspectRatio,
-            child: VideoPlayer(_controller),
+          SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: _controller.value.size.width,
+                height: _controller.value.size.height,
+                child: VideoPlayer(_controller),
+              ),
+            ),
           ),
 
-          // ▶ PLAY OVERLAY (when paused)
           if (!_controller.value.isPlaying)
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: Colors.black45,
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                shape: BoxShape.circle,
+              ),
               child: const Icon(
                 Icons.play_arrow,
-                size: 40,
+                size: 45,
                 color: Colors.white,
               ),
             ),
