@@ -9,4 +9,6 @@ abstract class CrowdRepo {
   Future<void> addComment(String postId, Comment comment);
   Future<void> deleteComment(String postId, String commentId);
   Future<List<CrowdPost>> fetchPostsByUserId(String uid);
+  Future<List<Map<String, dynamic>>> fetchOfficialUpdates();
+  Future<void> postOfficialUpdate(String title, String message, String mediaUrl, String type);
 }

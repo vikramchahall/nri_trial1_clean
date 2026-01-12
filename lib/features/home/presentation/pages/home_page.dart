@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nri_trial1_clean/features/home/presentation/pages/official_updates_page.dart';
 
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 import '../../../auth/presentation/cubits/auth_states.dart';
@@ -9,7 +10,7 @@ import '../../../crowdfunding/presentation/pages/crowd_feed_page.dart';
 import '../../../crowdfunding/presentation/pages/upload_crowd_page.dart';
 import '../../../profile/presentation/pages/my_profile_page.dart';
 import '../../../search/presentation/pages/search_page.dart';
-import '../../presentation/pages/dc_office_page.dart';
+import '../../presentation/pages/official_updates_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,7 +40,8 @@ class _HomePageState extends State<HomePage> {
         final List<Widget> pages = [
           const CrowdFeedPage(),        // Home
           const SearchPage(),           // Search
-          const DCOfficePage(),         // Official
+          
+          const OfficialUpdatesPage(),         // Official
           MyProfilePage(uid: user.uid), // Profile
         ];
 
@@ -76,7 +78,7 @@ class _HomePageState extends State<HomePage> {
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.search),
-                label: "Search",
+                label: "Follow",
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.campaign),
