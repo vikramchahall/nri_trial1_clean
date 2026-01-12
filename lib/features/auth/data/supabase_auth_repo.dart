@@ -19,7 +19,6 @@ class SupabaseAuthRepo implements AuthRepo {
       );
 
       if (response.user == null) return null;
-
       return await getCurrentUser();
     } catch (e) {
       throw Exception(e.toString());
@@ -41,7 +40,6 @@ class SupabaseAuthRepo implements AuthRepo {
     try {
       final normalizedUsername = username.trim().toLowerCase();
 
-      // 1️⃣ CHECK UNIQUE USERNAME
       final existing = await _supabase
           .from('profiles')
           .select('id')
@@ -52,7 +50,6 @@ class SupabaseAuthRepo implements AuthRepo {
         throw Exception("Username already taken");
       }
 
-      // 2️⃣ SIGN UP (Supabase auto-sends verification email)
       final AuthResponse res = await _supabase.auth.signUp(
         email: email.trim(),
         password: password,
@@ -61,7 +58,6 @@ class SupabaseAuthRepo implements AuthRepo {
       final user = res.user;
       if (user == null) return null;
 
-      // 3️⃣ CREATE PROFILE ROW
       await _supabase.from('profiles').insert({
         'id': user.id,
         'email': email.trim(),
@@ -75,10 +71,8 @@ class SupabaseAuthRepo implements AuthRepo {
         'is_dc': false,
       });
 
-      // 4️⃣ FORCE LOGOUT → wait for email verification
       await _supabase.auth.signOut();
-
-      return null; // triggers NeedVerification state
+      return null;
     } catch (e) {
       throw Exception(e.toString());
     }
@@ -92,7 +86,6 @@ class SupabaseAuthRepo implements AuthRepo {
 
     final user = session.user;
 
-    // 🚫 BLOCK UNVERIFIED USERS
     if (user.emailConfirmedAt == null) {
       await _supabase.auth.signOut();
       return null;
@@ -107,18 +100,40 @@ class SupabaseAuthRepo implements AuthRepo {
     return AppUser.fromJson(data);
   }
 
-  // ================= PASSWORD RESET =================
+  // ================= PASSWORD RESET (SEND OTP) =================
   @override
   Future<void> sendPasswordResetEmail(String email) async {
-    try {
-      await _supabase.auth.resetPasswordForEmail(email.trim());
-    } catch (e) {
-      throw Exception("Reset error: ${e.toString()}");
-    }
+    // ✅ CORRECT: sends 6-digit OTP using email template
+    await _supabase.auth.resetPasswordForEmail(email.trim());
+  }
+
+  // ================= VERIFY OTP & SET PASSWORD =================
+  @override
+  Future<void> verifyOtpAndSetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    await _supabase.auth.verifyOTP(
+      email: email.trim(),
+      token: otp.trim(),
+      type: OtpType.recovery,
+    );
+
+    await _supabase.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
+  // ================= UPDATE PASSWORD (LOGGED IN) =================
+  @override
+  Future<void> updatePassword(String newPassword) async {
+    await _supabase.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
   }
 
   // ================= EMAIL VERIFICATION =================
-  // Supabase handles verification automatically
   @override
   Future<void> sendEmailVerification() async {
     return;

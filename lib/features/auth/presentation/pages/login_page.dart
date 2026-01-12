@@ -24,8 +24,16 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
 
-    // ✅ SAFE AUTO-FILL (NO ASYNC, NO CRASH)
+    // ✅ AUTO-FILL FROM CUBIT (SAFE & SYNC)
+    final authCubit = context.read<AuthCubit>();
 
+    if (authCubit.prefillEmail != null) {
+      emailController.text = authCubit.prefillEmail!;
+    }
+
+    if (authCubit.prefillPassword != null) {
+      pwController.text = authCubit.prefillPassword!;
+    }
   }
 
   void login() {
@@ -37,7 +45,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // ✅ FIXED: Uses innerContext to avoid deactivated widget crash
   void _showLanguageDialog() {
     showDialog(
       context: context,
@@ -49,21 +56,27 @@ class _LoginPageState extends State<LoginPage> {
             ListTile(
               title: const Text("English"),
               onTap: () {
-                context.read<LanguageCubit>().changeLanguage(AppLanguage.english);
+                context
+                    .read<LanguageCubit>()
+                    .changeLanguage(AppLanguage.english);
                 Navigator.pop(innerContext);
               },
             ),
             ListTile(
               title: const Text("हिंदी"),
               onTap: () {
-                context.read<LanguageCubit>().changeLanguage(AppLanguage.hindi);
+                context
+                    .read<LanguageCubit>()
+                    .changeLanguage(AppLanguage.hindi);
                 Navigator.pop(innerContext);
               },
             ),
             ListTile(
               title: const Text("ਪੰਜਾਬੀ"),
               onTap: () {
-                context.read<LanguageCubit>().changeLanguage(AppLanguage.punjabi);
+                context
+                    .read<LanguageCubit>()
+                    .changeLanguage(AppLanguage.punjabi);
                 Navigator.pop(innerContext);
               },
             ),
@@ -75,7 +88,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CRITICAL: rebuilds UI when language changes
     return BlocBuilder<LanguageCubit, AppLanguage>(
       builder: (context, lang) {
         return Scaffold(
@@ -103,16 +115,16 @@ class _LoginPageState extends State<LoginPage> {
                     ),
 
                     const SizedBox(height: 25),
-Text(
-  AppTexts.get('welcome', lang),
-  textAlign: TextAlign.center,   // 🔥 THIS FIXES CENTERING
-  style: const TextStyle(
-    fontSize: 22,
-    fontWeight: FontWeight.bold,
-    height: 1.3,                 // 🔥 BETTER LINE SPACING
-  ),
-),
 
+                    Text(
+                      AppTexts.get('welcome', lang),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        height: 1.3,
+                      ),
+                    ),
 
                     const SizedBox(height: 25),
 
@@ -136,9 +148,10 @@ Text(
                         onPressed: () {
                           if (emailController.text.isEmpty) return;
 
+                          // ✅ FIXED METHOD NAME
                           context
                               .read<AuthCubit>()
-                              .resetPassword(emailController.text);
+                              .forgotPassword(emailController.text);
 
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(

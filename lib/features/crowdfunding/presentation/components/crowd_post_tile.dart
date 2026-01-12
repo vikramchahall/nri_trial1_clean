@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+// 🎥 Custom video player
+import '../../../../components/my_video_player.dart';
 
 import '../../domain/entities/crowd_post.dart';
 import '../../domain/entities/comment.dart';
@@ -23,7 +25,7 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
   final commentController = TextEditingController();
 
   // =========================
-  // 💬 COMMENT TRAY (SUPABASE)
+  // 💬 COMMENT TRAY
   // =========================
   void _showCommentTray(BuildContext context) {
     showModalBottomSheet(
@@ -162,69 +164,6 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
   }
 
   // =========================
-  // 📲 WHATSAPP DONATION
-  // =========================
-  void _launchWhatsApp(String name, String amount) async {
-    const phone = "919999999999"; // 🔴 PUT REAL NUMBER
-    final message =
-        "Hi, my name is $name. I donated ₹$amount for the post by @${widget.crowdPost.userName}. Screenshot attached.";
-
-    final url = Uri.parse(
-      "https://wa.me/$phone?text=${Uri.encodeComponent(message)}",
-    );
-
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  void _showDonationDialog(BuildContext context) {
-    final controller = TextEditingController();
-    final user = context.read<AuthCubit>().currentUser;
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Donation Details"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Send money to:", style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const SelectableText("UPI: villagehelp@upi"),
-            const SelectableText("Bank: SBI | A/C: 1234567890"),
-            const Divider(),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(prefixText: "₹ "),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                Navigator.pop(context);
-                _launchWhatsApp(
-                  user?.username ?? "User",
-                  controller.text,
-                );
-              }
-            },
-            child: const Text("Confirm on WhatsApp"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================
   // 🖥 UI
   // =========================
   @override
@@ -240,6 +179,14 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
 
     final bool isLiked = currentUser != null &&
         widget.crowdPost.likes.contains(currentUser.uid);
+
+    // ✅ SMART VIDEO DETECTION (handles ?v=timestamp)
+    final String mediaUrl = widget.crowdPost.imageUrl;
+    final String lowerUrl = mediaUrl.toLowerCase();
+    final bool isVideo =
+        lowerUrl.contains(".mp4") ||
+        lowerUrl.contains(".mov") ||
+        lowerUrl.contains(".m4v");
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
@@ -271,14 +218,29 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
                 : null,
           ),
 
-          AspectRatio(
-            aspectRatio: 1,
-            child: Image.network(
-              widget.crowdPost.imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  const Icon(Icons.broken_image, size: 40),
-            ),
+          // 🎥 MEDIA (IMAGE OR VIDEO)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(0),
+            child: isVideo
+                ? MyVideoPlayer(videoUrl: mediaUrl)
+                : Image.network(
+                    mediaUrl,
+                    height: 350,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 200,
+                        color: Colors.grey[100],
+                        child: const Center(
+                          child: Icon(
+                            Icons.broken_image,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
 
           Padding(
@@ -387,4 +349,110 @@ class _CrowdPostTileState extends State<CrowdPostTile> {
       ),
     );
   }
+
+  // =========================
+  // 📲 DONATION
+  // =========================
+  void _launchWhatsApp(String name, String amount, String cause) async {
+  const phone = "918837510630"; // Sample x number
+
+  final message =
+      "Hi, my name is $name.\n"
+      "I donated ₹$amount.\n"
+      "Purpose: $cause.\n\n"
+      "(Sample x message)";
+
+  final url = Uri.parse(
+    "https://wa.me/$phone?text=${Uri.encodeComponent(message)}",
+  );
+
+  if (await canLaunchUrl(url)) {
+    await launchUrl(url, mode: LaunchMode.externalApplication);
+  }
+}
+
+ void _showDonationDialog(BuildContext context) {
+  final amountController = TextEditingController();
+  final causeController = TextEditingController();
+  final user = context.read<AuthCubit>().currentUser;
+
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("Donation Details"),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Send money to:",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+
+            const SelectableText("The Secretary (Sample x)"),
+            const SelectableText("Indian Red Cross Society (Sample x)"),
+            const SelectableText("Punjab State Branch (Sample x)"),
+
+            const SizedBox(height: 6),
+
+            const SelectableText("Bank: State Bank of Patiala (Sample x)"),
+            const SelectableText("A/c No: 55xxxxxxxxx (Sample x)"),
+            const SelectableText("IFS Code: STBP0000xxx (Sample x)"),
+            const SelectableText("Jalandhar (Sample x)"),
+
+            const SizedBox(height: 10),
+            const Divider(),
+
+            // 💰 AMOUNT
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                prefixText: "₹ ",
+                labelText: "Donation Amount",
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // 📝 CAUSE / PURPOSE
+            TextField(
+              controller: causeController,
+              keyboardType: TextInputType.text,
+              decoration: const InputDecoration(
+                labelText: "Purpose / Cause of Donation",
+                hintText: "e.g. Flood relief, Medical help (Sample x)",
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (amountController.text.isNotEmpty &&
+                causeController.text.isNotEmpty) {
+              Navigator.pop(context);
+
+              // 📲 SEND BOTH AMOUNT + CAUSE TO WHATSAPP
+              _launchWhatsApp(
+                user?.username ?? "User",
+                amountController.text,
+                causeController.text,
+              );
+            }
+          },
+          child: const Text("Confirm on WhatsApp"),
+        ),
+      ],
+    ),
+  );
+}
+
 }

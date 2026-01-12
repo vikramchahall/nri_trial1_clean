@@ -16,13 +16,11 @@ class SupabaseStorageRepo implements StorageRepo {
       final img.Image? image = img.decodeImage(bytes);
       if (image == null) return bytes;
 
-      // Resize to max width 1080px
       final img.Image resized = img.copyResize(
         image,
         width: image.width > 1080 ? 1080 : image.width,
       );
 
-      // Compress to JPG 70%
       return Uint8List.fromList(
         img.encodeJpg(resized, quality: 70),
       );
@@ -33,7 +31,7 @@ class SupabaseStorageRepo implements StorageRepo {
   }
 
   // ===============================
-  // 🔁 SHARED UPLOAD HELPER (WEB + MOBILE)
+  // 🔁 SHARED UPLOAD HELPER (SMART VERSION)
   // ===============================
   Future<String?> _upload(
     Uint8List originalBytes,
@@ -41,11 +39,29 @@ class SupabaseStorageRepo implements StorageRepo {
     String fileName,
   ) async {
     try {
-      // 🔻 COMPRESS BEFORE UPLOAD
-      final Uint8List bytes = await _compressImage(originalBytes);
+      final lower = fileName.toLowerCase();
 
-      final String contentType = _getContentType(fileName);
+      // 1️⃣ SMART CONTENT TYPE DETECTION
+      String contentType = 'image/jpeg'; // default
+      bool isVideo = false;
 
+      if (lower.endsWith(".mp4")) {
+        contentType = 'video/mp4';
+        isVideo = true;
+      } else if (lower.endsWith(".mov")) {
+        contentType = 'video/quicktime';
+        isVideo = true;
+      } else if (lower.endsWith(".png")) {
+        contentType = 'image/png';
+      } else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+        contentType = 'image/jpeg';
+      }
+
+      // 2️⃣ BYTES (DO NOT COMPRESS VIDEOS)
+      final Uint8List bytes =
+          isVideo ? originalBytes : await _compressImage(originalBytes);
+
+      // 3️⃣ UPLOAD TO SUPABASE WITH MIME
       await _supabase.storage.from(bucket).uploadBinary(
             fileName,
             bytes,
@@ -55,19 +71,14 @@ class SupabaseStorageRepo implements StorageRepo {
             ),
           );
 
+      // 4️⃣ GET PUBLIC URL
       final String publicUrl =
           _supabase.storage.from(bucket).getPublicUrl(fileName);
 
-      if (publicUrl.isEmpty || !publicUrl.startsWith('http')) {
-        debugPrint("❌ Invalid public URL generated for $fileName");
-        return null;
-      }
-
-      // 🔁 Cache busting
+      // Cache busting to avoid browser issues
       return "$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}";
-    } catch (e, stack) {
+    } catch (e) {
       debugPrint("❌ Supabase Upload Error: $e");
-      debugPrintStack(stackTrace: stack);
       return null;
     }
   }
@@ -105,18 +116,4 @@ class SupabaseStorageRepo implements StorageRepo {
     String fileName,
   ) =>
       _upload(bytes, 'profile_images', fileName);
-
-  // ===============================
-  // 🧠 MIME TYPE HELPER
-  // ===============================
-  String _getContentType(String fileName) {
-    final lower = fileName.toLowerCase();
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-      return 'image/jpeg';
-    }
-    if (lower.endsWith('.webp')) {
-      return 'image/webp';
-    }
-    return 'image/png';
-  }
 }

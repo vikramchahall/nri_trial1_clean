@@ -30,7 +30,7 @@ class CrowdCubit extends Cubit<CrowdState> {
   }
 
   // ===============================
-  // 🆕 CREATE POST
+  // 🆕 CREATE POST (FIXED)
   // ===============================
   Future<void> createCrowdPost({
     required String text,
@@ -38,25 +38,27 @@ class CrowdCubit extends Cubit<CrowdState> {
     required double target,
     required String uId,
     required String uName,
+    required String customFileName, // ✅ NEW
   }) async {
     try {
       emit(CrowdUploading());
 
+      // ✅ SAFETY: put files inside user folder
       final safeUser = uName
           .toLowerCase()
           .replaceAll('@', '_')
           .replaceAll('.', '_');
 
-      final String filePath =
-          "$safeUser/${DateTime.now().millisecondsSinceEpoch}.jpg";
+      final String filePath = "$safeUser/$customFileName";
 
+      // ✅ USE PASSED FILENAME (NO HARDCODED .JPG)
       final imageUrl = await storageRepo.uploadPostImageMobile(
         imageBytes,
         filePath,
       );
 
       if (imageUrl == null) {
-        emit(CrowdError("Image upload failed"));
+        emit(CrowdError("Media upload failed"));
         return;
       }
 
@@ -81,22 +83,19 @@ class CrowdCubit extends Cubit<CrowdState> {
 
   // ===============================
   // 💰 DONATION
- // ===============================
-// 💰 DONATION
-// ===============================
-Future<void> donate(
-  String crowdId,
-  String donorName,
-  double amount,
-) async {
-  try {
-    // ✅ CORRECT: Supabase repo method
-    await crowdRepo.donateToPost(crowdId, donorName, amount);
-    fetchAllCrowds();
-  } catch (e) {
-    emit(CrowdError(e.toString()));
+  // ===============================
+  Future<void> donate(
+    String crowdId,
+    String donorName,
+    double amount,
+  ) async {
+    try {
+      await crowdRepo.donateToPost(crowdId, donorName, amount);
+      fetchAllCrowds();
+    } catch (e) {
+      emit(CrowdError(e.toString()));
+    }
   }
-}
 
   // ===============================
   // 🗑 DELETE POST
@@ -137,48 +136,46 @@ Future<void> donate(
   }
 
   // ===============================
-  // ❤️ LIKE / UNLIKE (OPTIMISTIC — NO RELOAD)
+  // ❤️ LIKE / UNLIKE (OPTIMISTIC)
   // ===============================
   Future<void> toggleLike(String postId, String userId) async {
-  if (state is! CrowdLoaded) return;
+    if (state is! CrowdLoaded) return;
 
-  final currentState = state as CrowdLoaded;
-  final posts = List<CrowdPost>.from(currentState.crowds);
+    final currentState = state as CrowdLoaded;
+    final posts = List<CrowdPost>.from(currentState.crowds);
 
-  final index = posts.indexWhere((p) => p.id == postId);
-  if (index == -1) return;
+    final index = posts.indexWhere((p) => p.id == postId);
+    if (index == -1) return;
 
-  final post = posts[index];
-  final isLiked = post.likes.contains(userId);
+    final post = posts[index];
+    final isLiked = post.likes.contains(userId);
 
-  // ✅ FIX: prepare likes list properly
-  final updatedLikes = List<String>.from(post.likes);
-  if (isLiked) {
-    updatedLikes.remove(userId);
-  } else {
-    updatedLikes.add(userId);
+    final updatedLikes = List<String>.from(post.likes);
+    if (isLiked) {
+      updatedLikes.remove(userId);
+    } else {
+      updatedLikes.add(userId);
+    }
+
+    final updatedPost = CrowdPost(
+      id: post.id,
+      userId: post.userId,
+      userName: post.userName,
+      text: post.text,
+      imageUrl: post.imageUrl,
+      timestamp: post.timestamp,
+      targetAmount: post.targetAmount,
+      raisedAmount: post.raisedAmount,
+      likes: updatedLikes,
+    );
+
+    posts[index] = updatedPost;
+    emit(CrowdLoaded(posts));
+
+    try {
+      await crowdRepo.toggleLikePost(postId, userId);
+    } catch (_) {
+      // optional rollback ignored
+    }
   }
-
-  final updatedPost = CrowdPost(
-    id: post.id,
-    userId: post.userId,
-    userName: post.userName,
-    text: post.text,
-    imageUrl: post.imageUrl,
-    timestamp: post.timestamp,
-    targetAmount: post.targetAmount,
-    raisedAmount: post.raisedAmount,
-    likes: updatedLikes,
-  );
-
-  posts[index] = updatedPost;
-  emit(CrowdLoaded(posts)); // ✅ no full reload
-
-  // 🔄 Firestore update in background
-  try {
-    await crowdRepo.toggleLikePost(postId, userId);
-  } catch (_) {
-    // optional rollback (ignored)
-  }
-}
 }

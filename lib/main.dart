@@ -8,6 +8,7 @@ import 'features/auth/presentation/cubits/auth_cubit.dart';
 import 'features/auth/presentation/cubits/auth_states.dart';
 import 'features/auth/presentation/pages/auth_page.dart';
 import 'features/auth/presentation/pages/verification_page.dart';
+import 'features/auth/presentation/pages/reset_password_otp_page.dart';
 
 // 🔹 LANGUAGE
 import 'features/auth/presentation/cubits/language_cubit.dart';
@@ -56,7 +57,7 @@ class MyApp extends StatelessWidget {
           )..checkAuth(),
         ),
 
-        // ❤️ CROWDFUNDING (FIXES PROVIDER ERROR)
+        // ❤️ CROWDFUNDING
         BlocProvider(
           create: (_) => CrowdCubit(
             crowdRepo: SupabaseCrowdRepo(),
@@ -79,34 +80,53 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
         ),
 
-        // 🔁 AUTH STATE HANDLING
+        // 🔁 AUTH STATE HANDLING (NO LOGIN FLASH)
         home: BlocConsumer<AuthCubit, AuthState>(
           listener: (context, state) {
             if (state is AuthError) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content:
-                      Text(state.message.replaceAll('Exception: ', '')),
+                  content: Text(state.message),
                   backgroundColor: Colors.red,
                 ),
               );
             }
           },
           builder: (context, state) {
+            // ✅ 0️⃣ SPLASH / CHECKING SESSION (FIXES LOGIN FLASH)
+            if (state is AuthInitial) {
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(color: Colors.green),
+                ),
+              );
+            }
+
+            // 1️⃣ LOGGED IN
             if (state is Authenticated) {
               return const HomePage();
             }
 
+            // 2️⃣ 🔐 RESET PASSWORD (OTP SCREEN)
+            if (state is ResetPasswordOtpMode) {
+              return ResetPasswordOtpPage(email: state.email);
+            }
+
+            // 3️⃣ EMAIL VERIFICATION
             if (state is NeedVerification) {
               return VerificationPage(email: state.email);
             }
 
+            // 4️⃣ LOADING (API CALLS)
             if (state is AuthLoading) {
               return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
+                body: Center(
+                  child: CircularProgressIndicator(color: Colors.green),
+                ),
               );
             }
 
+            // 5️⃣ DEFAULT → LOGIN / REGISTER
             return const AuthPage();
           },
         ),

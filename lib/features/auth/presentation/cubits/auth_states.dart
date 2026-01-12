@@ -22,17 +22,26 @@ class AuthError extends AuthState {
 }
 
 // ===============================
-// 🔑 FIX STATES (VERY IMPORTANT)
+// AUTH FLOW STATES
 // ===============================
 
-// After registration → user must check email
+// After registration → user must verify email
 class NeedVerification extends AuthState {
   final String email;
   NeedVerification(this.email);
 }
 
-// After forgot password → show confirmation screen
+// After forgot password → OTP sent
 class PasswordResetSent extends AuthState {
   final String email;
   PasswordResetSent(this.email);
 }
+
+// 🔐 ENTER OTP + NEW PASSWORD SCREEN (FIXED & CORRECT)
+class ResetPasswordOtpMode extends AuthState {
+  final String email;
+  ResetPasswordOtpMode(this.email);
+}
+
+// 🔐 PASSWORD RECOVERY MODE (legacy / optional)
+class PasswordRecoveryMode extends AuthState {}

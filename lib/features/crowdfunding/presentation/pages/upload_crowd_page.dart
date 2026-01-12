@@ -18,7 +18,9 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
   final TextEditingController _targetController = TextEditingController();
 
   Uint8List? _selectedMediaBytes;
-  bool _isVideo = false;
+
+  // 🔑 TRACK MEDIA TYPE
+  bool _isFileTypeVideo = false;
 
   bool _isUploading = false;
   bool _isDonationPost = false;
@@ -33,13 +35,13 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     if (isVideo) {
       file = await picker.pickVideo(
         source: ImageSource.gallery,
-        maxDuration: const Duration(seconds: 30), // ⛔ LIMIT VIDEO
+        maxDuration: const Duration(seconds: 30),
       );
     } else {
       file = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1080,     // 📉 COMPRESS IMAGE
-        imageQuality: 70,   // 📉 COMPRESS IMAGE
+        maxWidth: 1080,
+        imageQuality: 70,
       );
     }
 
@@ -47,13 +49,13 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
       final bytes = await file.readAsBytes();
       setState(() {
         _selectedMediaBytes = bytes;
-        _isVideo = isVideo;
+        _isFileTypeVideo = isVideo; // ✅ SAVE TYPE
       });
     }
   }
 
   // ===============================
-  // ⬆️ UPLOAD POST
+  // ⬆️ UPLOAD POST (FIXED)
   // ===============================
   Future<void> _upload() async {
     final user = context.read<AuthCubit>().currentUser;
@@ -85,12 +87,21 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
 
     setState(() => _isUploading = true);
 
+    // ✅ DYNAMIC FILE EXTENSION (THE FIX)
+    String fileName = DateTime.now().millisecondsSinceEpoch.toString();
+    if (_isFileTypeVideo) {
+      fileName += ".mp4";
+    } else {
+      fileName += ".jpg";
+    }
+
     await context.read<CrowdCubit>().createCrowdPost(
           text: _captionController.text,
-          imageBytes: _selectedMediaBytes!, // video support later
+          imageBytes: _selectedMediaBytes!,
           target: targetValue,
           uId: user.uid,
           uName: user.username,
+          customFileName: fileName, // ✅ PASSED TO CUBIT
         );
 
     if (mounted) Navigator.pop(context);
@@ -116,20 +127,28 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
         child: Column(
           children: [
             // MEDIA PICKER
-            GestureDetector(
-              onTap: () => _pickMedia(false), // image for now
-              child: Container(
-                height: 220,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(12),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _pickMedia(false),
+                    child: _pickerTile(
+                      icon: Icons.image,
+                      label: "Pick Image",
+                    ),
+                  ),
                 ),
-                child: _selectedMediaBytes != null
-                    ? const Icon(Icons.check_circle,
-                        size: 60, color: Colors.green)
-                    : const Icon(Icons.add_a_photo, size: 50),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _pickMedia(true),
+                    child: _pickerTile(
+                      icon: Icons.videocam,
+                      label: "Pick Video",
+                    ),
+                  ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 20),
@@ -173,6 +192,24 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _pickerTile({required IconData icon, required String label}) {
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 40),
+          const SizedBox(height: 8),
+          Text(label),
+        ],
       ),
     );
   }
