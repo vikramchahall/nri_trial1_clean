@@ -9,23 +9,32 @@ class MyMediaGridTile extends StatefulWidget {
   State<MyMediaGridTile> createState() => _MyMediaGridTileState();
 }
 
-class _MyMediaGridTileState extends State<MyMediaGridTile> {
+class _MyMediaGridTileState extends State<MyMediaGridTile> with AutomaticKeepAliveClientMixin {
   VideoPlayerController? _controller;
   bool isVideo = false;
+  bool _isInitialized = false;
+
+  @override
+  bool get wantKeepAlive => true; // Keeps the thumbnail loaded while scrolling
 
   @override
   void initState() {
     super.initState();
-    // Detect if it is a video
-    isVideo = widget.url.toLowerCase().contains(".mp4") || 
-              widget.url.toLowerCase().contains(".mov");
+    
+    // Check if the URL is a video
+    final String path = widget.url.toLowerCase();
+    isVideo = path.contains(".mp4") || path.contains(".mov") || path.contains(".m4v");
 
     if (isVideo) {
       _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
         ..initialize().then((_) {
-          // Seek to the 1st second to get a "preview" frame
+          // Seek to 1 second to get a good preview frame
           _controller!.seekTo(const Duration(seconds: 1));
-          setState(() {});
+          if (mounted) {
+            setState(() {
+              _isInitialized = true;
+            });
+          }
         });
     }
   }
@@ -38,26 +47,43 @@ class _MyMediaGridTileState extends State<MyMediaGridTile> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAlive
+
     if (!isVideo) {
-      return Image.network(widget.url, fit: BoxFit.cover);
+      return Image.network(
+        widget.url,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: Colors.grey[200],
+          child: const Icon(Icons.broken_image, color: Colors.grey),
+        ),
+      );
     }
 
-    // Video Thumbnail View
+    // Video Preview logic
     return Stack(
       fit: StackFit.expand,
       children: [
-        _controller != null && _controller!.value.isInitialized
-            ? VideoPlayer(_controller!)
-            : Container(color: Colors.grey[200]), // Loading state
+        _isInitialized
+            ? FittedBox(
+                fit: BoxFit.cover,
+                clipBehavior: Clip.hardEdge,
+                child: SizedBox(
+                  width: _controller!.value.size.width,
+                  height: _controller!.value.size.height,
+                  child: VideoPlayer(_controller!),
+                ),
+              )
+            : Container(color: Colors.grey[200]),
         
-        // VIDEO INDICATOR ICON (Industry Standard)
+        // VIDEO INDICATOR ICON
         const Positioned(
-          top: 8,
-          right: 8,
+          top: 5,
+          right: 5,
           child: Icon(Icons.videocam, color: Colors.white, size: 18),
         ),
         
-        // Darken the thumbnail slightly
+        // Slight dark overlay to make the icon pop
         Container(color: Colors.black12),
       ],
     );

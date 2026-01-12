@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../domain/entities/profile_user.dart';
 import '../domain/repos/profile_repo.dart';
 
@@ -6,30 +8,42 @@ class SupabaseProfileRepo implements ProfileRepo {
   final _supabase = Supabase.instance.client;
 
   // ===============================
-  // 👤 FETCH USER PROFILE + FOLLOWER COUNT
+  // 👤 FETCH USER PROFILE + FOLLOWER / FOLLOWING COUNT (FIXED)
   // ===============================
   @override
   Future<ProfileUser?> fetchUserProfile(String uid) async {
     try {
-      // 🔗 Join profiles with follows table (followers)
+      // 🔥 Fetch profile + followers + following in ONE query
       final response = await _supabase
           .from('profiles')
-          .select('*, follows!following_id(follower_id)')
+          .select(
+            '*, '
+            'follows!following_id(follower_id), '
+            'following:follows!follower_id(following_id)',
+          )
           .eq('id', uid)
           .single();
 
-      // 📊 Extract follower IDs
-      final List followersData = response['follows'] ?? [];
-      final List<String> followerIds = followersData
+      // 📊 Extract followers
+      final List followersRaw = response['follows'] ?? [];
+      final List<String> followerIds = followersRaw
           .map((f) => f['follower_id'].toString())
           .toList();
 
-      // 🧠 Inject followers list into profile model
+      // 📊 Extract following
+      final List followingRaw = response['following'] ?? [];
+      final List<String> followingIds = followingRaw
+          .map((f) => f['following_id'].toString())
+          .toList();
+
+      // 🧠 Inject lists into ProfileUser
       return ProfileUser.fromJson({
         ...response,
         'followers': followerIds,
+        'following': followingIds,
       });
     } catch (e) {
+      debugPrint("Fetch Profile Error: $e");
       return null;
     }
   }
@@ -47,7 +61,7 @@ class SupabaseProfileRepo implements ProfileRepo {
             'profile_image_url': updatedProfile.profileImageUrl,
             'username': updatedProfile.username,
           })
-          // ✅ CRITICAL: ensure only THIS user's row is updated
+          // ✅ ensure only THIS user's row is updated
           .eq('id', updatedProfile.uid);
     } catch (e) {
       throw Exception("Update failed: $e");
@@ -63,7 +77,6 @@ class SupabaseProfileRepo implements ProfileRepo {
     String targetUid,
   ) async {
     try {
-      // 1️⃣ Check if follow relationship already exists
       final existingFollow = await _supabase
           .from('follows')
           .select()
@@ -72,14 +85,14 @@ class SupabaseProfileRepo implements ProfileRepo {
           .maybeSingle();
 
       if (existingFollow != null) {
-        // 2️⃣ UNFOLLOW → delete row
+        // UNFOLLOW
         await _supabase
             .from('follows')
             .delete()
             .eq('follower_id', currentUid)
             .eq('following_id', targetUid);
       } else {
-        // 3️⃣ FOLLOW → insert row
+        // FOLLOW
         await _supabase.from('follows').insert({
           'follower_id': currentUid,
           'following_id': targetUid,

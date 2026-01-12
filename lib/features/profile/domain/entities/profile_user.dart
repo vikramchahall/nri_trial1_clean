@@ -33,29 +33,28 @@ class ProfileUser extends AppUser {
 
   // ===============================
   // 🔁 COPY (USED BY ProfileCubit)
-  // ===============================
-  ProfileUser copyWith({
-    String? newBio,
-    String? newProfileImageUrl,
-  }) {
-    return ProfileUser(
-      uid: uid,
-      email: email,
-      username: username,
-      userType: userType,
-      isAdmin: isAdmin,
-      isDC: isDC,
-      phoneNumber: phoneNumber,
-      city: city,
-      town: town,
-      blockName: blockName,
-      panchayatId: panchayatId,
-      bio: newBio ?? bio,
-      profileImageUrl: newProfileImageUrl ?? profileImageUrl,
-      followers: followers,
-      following: following,
-    );
-  }
+  ProfileUser copyWithProfile({
+  String? bio,
+  String? profileImageUrl,
+}) {
+  return ProfileUser(
+    uid: uid,
+    email: email,
+    username: username,
+    userType: userType,
+    isAdmin: isAdmin,
+    isDC: isDC,
+    phoneNumber: phoneNumber,
+    city: city,
+    town: town,
+    blockName: blockName,
+    panchayatId: panchayatId,
+    bio: bio ?? this.bio,
+    profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+    followers: followers,
+    following: following,
+  );
+}
 
   // ===============================
   // 🔄 TO SUPABASE

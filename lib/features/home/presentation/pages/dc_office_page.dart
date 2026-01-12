@@ -14,7 +14,7 @@ class DCOfficePage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("DC Office Jalandhar"),
+        title: const Text("Official Updates"),
         centerTitle: true,
         actions: [
           // ✅ ONLY DC CAN POST

@@ -1,15 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/profile_user.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
+import '../cubits/profile_cubit.dart';
+import '../cubits/profile_state.dart';
 import 'profile_page_content.dart';
 import 'profile_edit_page.dart';
 
-class MyProfilePage extends StatelessWidget {
+class MyProfilePage extends StatefulWidget {
   final String uid;
   const MyProfilePage({super.key, required this.uid});
+
+  @override
+  State<MyProfilePage> createState() => _MyProfilePageState();
+}
+
+class _MyProfilePageState extends State<MyProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+    // 🔥 ALWAYS fetch MY profile when page opens
+    context.read<ProfileCubit>().fetchUserProfile(widget.uid);
+  }
 
   // ================= SETTINGS BOTTOM SHEET =================
   void _showSettingsTray(BuildContext context, ProfileUser user) {
@@ -30,7 +43,6 @@ class MyProfilePage extends StatelessWidget {
           ),
           const Divider(),
 
-          // ✏️ EDIT PROFILE
           ListTile(
             leading: const Icon(Icons.edit),
             title: const Text("Edit Bio & Photo"),
@@ -47,13 +59,9 @@ class MyProfilePage extends StatelessWidget {
 
           const Divider(),
 
-          // 🚪 LOGOUT
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text(
-              "Logout",
-              style: TextStyle(color: Colors.red),
-            ),
+            title: const Text("Logout", style: TextStyle(color: Colors.red)),
             onTap: () {
               Navigator.pop(sheetContext);
               authCubit.logout();
@@ -69,20 +77,25 @@ class MyProfilePage extends StatelessWidget {
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      // ✅ SUPABASE STREAM (replaces Firebase)
-      stream: Supabase.instance.client
-          .from('profiles')
-          .stream(primaryKey: ['id'])
-          .eq('id', uid),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+    return BlocBuilder<ProfileCubit, ProfileState>(
+      builder: (context, state) {
+        if (state is ProfileInitial || state is ProfileLoading) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        final user = ProfileUser.fromJson(snapshot.data!.first);
+        if (state is ProfileError) {
+          return Scaffold(
+            body: Center(child: Text(state.message)),
+          );
+        }
+
+        if (state is! ProfileLoaded) {
+          return const SizedBox.shrink();
+        }
+
+        final ProfileUser user = state.profileUser;
 
         return Scaffold(
           appBar: AppBar(

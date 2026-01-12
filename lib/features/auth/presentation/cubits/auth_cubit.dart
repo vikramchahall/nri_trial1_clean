@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:nri_trial1_clean/features/auth/domain/entities/app_user.dart';
@@ -98,7 +99,7 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   // ==================================================
-  // EMAIL VERIFICATION CHECK (RETURN TO LOGIN)
+  // EMAIL VERIFICATION CHECK
   // ==================================================
   Future<void> checkStatus(String email) async {
     try {
@@ -117,20 +118,19 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  // ✅ ALIAS
   Future<void> checkVerificationStatus(String email) {
     return checkStatus(email);
   }
 
   // ==================================================
-  // 🔐 SHOW PASSWORD RESET SCREEN (LEGACY)
+  // PASSWORD RESET UI
   // ==================================================
   void showPasswordResetScreen() {
     emit(PasswordRecoveryMode());
   }
 
   // ==================================================
-  // UPDATE PASSWORD (LOGGED-IN USER)
+  // UPDATE PASSWORD
   // ==================================================
   Future<void> updatePassword(String newPassword) async {
     try {
@@ -147,20 +147,14 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   // ==================================================
-  // 🔐 FORGOT PASSWORD → SEND OTP + FORCE OTP SCREEN
-  // (STEP-2 FIX APPLIED HERE)
+  // FORGOT PASSWORD
   // ==================================================
   Future<void> forgotPassword(String email) async {
     try {
-      emit(AuthLoading()); // show loader
-
-      // 1. Ask Supabase to send OTP
+      emit(AuthLoading());
       await authRepo.sendPasswordResetEmail(email.trim());
-
-      // 2. FORCE state change to OTP mode
       emit(ResetPasswordOtpMode(email.trim()));
     } catch (e) {
-      // On failure → back to login + error
       emit(Unauthenticated());
       emit(AuthError(
         "User not found or limit exceeded: ${e.toString()}",
@@ -169,7 +163,7 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   // ==================================================
-  // 🔐 VERIFY OTP + RESET PASSWORD
+  // VERIFY OTP
   // ==================================================
   Future<void> verifyAndReset({
     required String email,
@@ -190,6 +184,23 @@ class AuthCubit extends Cubit<AuthState> {
     } catch (e) {
       emit(ResetPasswordOtpMode(email));
       emit(AuthError(e.toString()));
+    }
+  }
+
+  // ==================================================
+  // 🔄 REFRESH CURRENT USER (FOLLOW / UNFOLLOW FIX)
+  // ==================================================
+  Future<void> refreshCurrentUser() async {
+    try {
+      final user = await authRepo.getCurrentUser();
+      if (user != null) {
+        _currentUser = user;
+
+        // 🔥 THIS IS THE MAGIC LINE
+        emit(Authenticated(user));
+      }
+    } catch (e) {
+      debugPrint("Error refreshing current user: $e");
     }
   }
 

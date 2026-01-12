@@ -78,36 +78,54 @@ class SupabaseAuthRepo implements AuthRepo {
     }
   }
 
-  // ================= CURRENT USER =================
+  // ================= CURRENT USER (STEP 5 – CRITICAL FIX) =================
   @override
   Future<AppUser?> getCurrentUser() async {
-    final session = _supabase.auth.currentSession;
-    if (session == null) return null;
+    final user = _supabase.auth.currentUser;
+    if (user == null) return null;
 
-    final user = session.user;
-
-    if (user.emailConfirmedAt == null) {
-      await _supabase.auth.signOut();
-      return null;
-    }
-
+    // 1️⃣ Fetch profile data
     final data = await _supabase
         .from('profiles')
         .select()
         .eq('id', user.id)
         .single();
 
-    return AppUser.fromJson(data);
+    // 2️⃣ Fetch FOLLOWING list
+    final followingData = await _supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id);
+
+    final List<String> followingIds = (followingData as List)
+        .map((f) => f['following_id'].toString())
+        .toList();
+
+    // 3️⃣ Fetch FOLLOWERS list
+    final followerData = await _supabase
+        .from('follows')
+        .select('follower_id')
+        .eq('following_id', user.id);
+
+    final List<String> followerIds = (followerData as List)
+        .map((f) => f['follower_id'].toString())
+        .toList();
+
+    // 4️⃣ Return merged user
+    return AppUser.fromJson({
+      ...data,
+      'following': followingIds,
+      'followers': followerIds,
+    });
   }
 
-  // ================= PASSWORD RESET (SEND OTP) =================
+  // ================= PASSWORD RESET =================
   @override
   Future<void> sendPasswordResetEmail(String email) async {
-    // ✅ CORRECT: sends 6-digit OTP using email template
     await _supabase.auth.resetPasswordForEmail(email.trim());
   }
 
-  // ================= VERIFY OTP & SET PASSWORD =================
+  // ================= VERIFY OTP =================
   @override
   Future<void> verifyOtpAndSetPassword({
     required String email,
@@ -125,7 +143,7 @@ class SupabaseAuthRepo implements AuthRepo {
     );
   }
 
-  // ================= UPDATE PASSWORD (LOGGED IN) =================
+  // ================= UPDATE PASSWORD =================
   @override
   Future<void> updatePassword(String newPassword) async {
     await _supabase.auth.updateUser(

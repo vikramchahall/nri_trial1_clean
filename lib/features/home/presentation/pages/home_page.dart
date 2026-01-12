@@ -80,7 +80,7 @@ class _HomePageState extends State<HomePage> {
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.campaign),
-                label: "Official",
+                label: "Updates",
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person),

@@ -41,7 +41,6 @@ class FollowerListPage extends StatelessWidget {
                     }
 
                     final user = snapshot.data!;
-
                     final imageUrl =
                         user['profile_image_url'] as String? ?? '';
 
@@ -55,6 +54,7 @@ class FollowerListPage extends StatelessWidget {
                       ),
                       title: Text("@${user['username']}"),
                       onTap: () {
+                        // ✅ ONLY THIS — normal push
                         Navigator.push(
                           context,
                           MaterialPageRoute(

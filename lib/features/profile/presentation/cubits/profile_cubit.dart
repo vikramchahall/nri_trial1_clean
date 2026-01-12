@@ -6,6 +6,7 @@ import '../../../storage/domain/storage_repo.dart';
 import '../../domain/repos/profile_repo.dart';
 import 'profile_state.dart';
 import '../../../crowdfunding/domain/entities/crowd_post.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
 
 class ProfileCubit extends Cubit<ProfileState> {
   final ProfileRepo profileRepo;
@@ -72,7 +73,6 @@ class ProfileCubit extends Cubit<ProfileState> {
 
       String? imageLink;
 
-      // 📤 1️⃣ Upload image if provided
       if (imageBytes != null) {
         imageLink = await storageRepo.uploadProfileImageMobile(
           imageBytes,
@@ -80,22 +80,17 @@ class ProfileCubit extends Cubit<ProfileState> {
         );
       }
 
-      // 📥 2️⃣ Fetch current profile
       final currentProfile = await profileRepo.fetchUserProfile(uid);
 
       if (currentProfile != null) {
-        // ✍️ 3️⃣ Create updated profile with NEW image link
-        final updatedProfile = currentProfile.copyWith(
-          newBio: newBio ?? currentProfile.bio,
-          // If user didn’t pick a new image, keep the old one
-          newProfileImageUrl:
+        final updatedProfile = currentProfile.copyWithProfile(
+          bio: newBio ?? currentProfile.bio,
+          profileImageUrl:
               imageLink ?? currentProfile.profileImageUrl,
         );
 
-        // 💾 4️⃣ Update profile in Supabase
         await profileRepo.updateProfile(updatedProfile);
 
-        // 🔁 5️⃣ Force refresh UI with latest data
         await fetchUserProfile(uid);
       }
     } catch (e) {
@@ -104,19 +99,25 @@ class ProfileCubit extends Cubit<ProfileState> {
   }
 
   // ===============================
-  // 👥 FOLLOW / UNFOLLOW (PHASE 1 FIX)
+  // 👥 FOLLOW / UNFOLLOW (FINAL, CORRECT)
   // ===============================
   Future<void> toggleFollow(
     String currentUid,
     String targetUid,
+    AuthCubit authCubit,
   ) async {
     try {
-      // 1️⃣ Perform DB change
+      // 1️⃣ Update follows table
       await profileRepo.toggleFollow(currentUid, targetUid);
 
-      // 2️⃣ THE FIX: Immediately re-fetch profile
-      // Forces Cubit to emit fresh ProfileLoaded state
+      // 2️⃣ Refresh TARGET profile
       await fetchUserProfile(targetUid);
+
+      // 3️⃣ Refresh AUTH (following list)
+      await authCubit.refreshCurrentUser();
+
+      // 4️⃣ 🔥 Refresh MY PROFILE (fixes stale counts)
+      await fetchUserProfile(currentUid);
     } catch (e) {
       emit(ProfileError(e.toString()));
     }
