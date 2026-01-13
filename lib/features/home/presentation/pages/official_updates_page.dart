@@ -18,7 +18,7 @@ class OfficialUpdatesPage extends StatelessWidget {
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text(
-          "OFFICIAL",
+          "OFFICIAL UPDATES",
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
         centerTitle: true,

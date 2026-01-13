@@ -1,6 +1,10 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// ================= ENTRY POINT =================
 void showOfficialPostDialog(BuildContext context) {
   showModalBottomSheet(
     context: context,
@@ -15,7 +19,7 @@ void showOfficialPostDialog(BuildContext context) {
           title: const Text("Post Announcement"),
           onTap: () {
             Navigator.pop(context);
-            _showNewsDialog(context);
+            _showAnnouncementDialog(context);
           },
         ),
         ListTile(
@@ -31,59 +35,298 @@ void showOfficialPostDialog(BuildContext context) {
   );
 }
 
-// ---------------- NEWS ----------------
-void _showNewsDialog(BuildContext context) {
-  final title = TextEditingController();
-  final message = TextEditingController();
+//////////////////////////////////////////////////
+/// --------------- ANNOUNCEMENT ----------------
+//////////////////////////////////////////////////
+
+void _showAnnouncementDialog(BuildContext context) {
+  final titleCtrl = TextEditingController();
+  final messageCtrl = TextEditingController();
+  XFile? pickedFile;
 
   _baseDialog(
     context,
     title: "New Announcement",
     children: [
-      TextField(controller: title, decoration: const InputDecoration(hintText: "Title")),
+      TextField(
+        controller: titleCtrl,
+        decoration: const InputDecoration(hintText: "Title"),
+      ),
       const SizedBox(height: 10),
-      TextField(controller: message, maxLines: 3, decoration: const InputDecoration(hintText: "Message")),
+      TextField(
+        controller: messageCtrl,
+        maxLines: 3,
+        decoration: const InputDecoration(hintText: "Message"),
+      ),
+      const SizedBox(height: 15),
+
+      /// 📎 MEDIA PICKER
+      StatefulBuilder(
+        builder: (context, setState) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.attach_file),
+                label: Text(
+                  pickedFile == null ? "Add Photo / Video" : "Change Media",
+                ),
+                onPressed: () async {
+                  final picker = ImagePicker();
+                  final file = await picker.pickMedia();
+                  if (file != null) {
+                    setState(() => pickedFile = file);
+                  }
+                },
+              ),
+              if (pickedFile != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    pickedFile!.name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
     ],
     onSubmit: () async {
-      await Supabase.instance.client.from('official_updates').insert({
-        'title': title.text,
-        'message': message.text,
-      });
-      Navigator.pop(context);
+      try {
+        final supabase = Supabase.instance.client;
+
+        String? mediaUrl;
+        String? mediaType;
+        String? storagePath;
+
+        if (pickedFile != null) {
+          final ext = pickedFile!.name.split('.').last.toLowerCase();
+          final isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
+          mediaType = isVideo ? 'video' : 'image';
+
+          storagePath = 'announcements/${DateTime.now().millisecondsSinceEpoch}_${pickedFile!.name}';
+
+          if (kIsWeb) {
+            final bytes = await pickedFile!.readAsBytes();
+            await supabase.storage.from('official_media').uploadBinary(
+                  storagePath,
+                  bytes,
+                  fileOptions: FileOptions(
+                    contentType: isVideo ? 'video/$ext' : 'image/$ext',
+                  ),
+                );
+          } else {
+            final file = File(pickedFile!.path);
+            await supabase.storage.from('official_media').upload(
+                  storagePath,
+                  file,
+                  fileOptions: FileOptions(
+                    contentType: isVideo ? 'video/$ext' : 'image/$ext',
+                  ),
+                );
+          }
+
+          mediaUrl = supabase.storage.from('official_media').getPublicUrl(storagePath);
+        }
+
+        /// 📥 INSERT ROW INTO TABLE
+        final insertData = {
+          'title': titleCtrl.text.trim(),
+          'message': messageCtrl.text.trim(),
+        };
+
+        if (mediaUrl != null) insertData['media_url'] = mediaUrl;
+        if (mediaType != null) insertData['media_type'] = mediaType;
+
+        await supabase.from('official_updates').insert(insertData);
+
+        if (context.mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Announcement posted successfully!")),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Error: $e"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     },
   );
 }
 
-// ---------------- ACHIEVEMENT ----------------
+//////////////////////////////////////////////////
+/// --------------- ACHIEVEMENT -----------------
+//////////////////////////////////////////////////
+
 void _showAchievementDialog(BuildContext context) {
-  final title = TextEditingController();
-  final shortDesc = TextEditingController();
+  final titleCtrl = TextEditingController();
+  final descCtrl = TextEditingController();
+  final fullDetailsCtrl = TextEditingController();
+  XFile? pickedImage;
 
   _baseDialog(
     context,
     title: "Add Achievement",
     children: [
-      TextField(controller: title, decoration: const InputDecoration(hintText: "Achievement Title")),
+      TextField(
+        controller: titleCtrl,
+        decoration: const InputDecoration(
+          hintText: "Achievement Title",
+          labelText: "Title",
+        ),
+      ),
       const SizedBox(height: 10),
-      TextField(controller: shortDesc, decoration: const InputDecoration(hintText: "Short Description")),
+      TextField(
+        controller: descCtrl,
+        decoration: const InputDecoration(
+          hintText: "Short Description (for card)",
+          labelText: "Short Description",
+        ),
+      ),
+      const SizedBox(height: 10),
+      TextField(
+        controller: fullDetailsCtrl,
+        maxLines: 4,
+        decoration: const InputDecoration(
+          hintText: "Full details about the achievement",
+          labelText: "Full Details",
+        ),
+      ),
+      const SizedBox(height: 15),
+
+      /// 📎 IMAGE PICKER
+      StatefulBuilder(
+        builder: (context, setState) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.image),
+                label: Text(
+                  pickedImage == null ? "Add Image" : "Change Image",
+                ),
+                onPressed: () async {
+                  final picker = ImagePicker();
+                  final file = await picker.pickImage(
+                    source: ImageSource.gallery,
+                  );
+                  if (file != null) {
+                    setState(() => pickedImage = file);
+                  }
+                },
+              ),
+              if (pickedImage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    pickedImage!.name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
     ],
     onSubmit: () async {
-      await Supabase.instance.client.from('achievements').insert({
-        'title': title.text,
-        'short_description': shortDesc.text,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      Navigator.pop(context);
+      if (titleCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please enter a title")),
+        );
+        return;
+      }
+
+      try {
+        final supabase = Supabase.instance.client;
+        String? imageUrl;
+        String? storagePath;
+
+        if (pickedImage != null) {
+          final ext = pickedImage!.name.split('.').last.toLowerCase();
+          storagePath = 'achievements/${DateTime.now().millisecondsSinceEpoch}_${pickedImage!.name}';
+
+          if (kIsWeb) {
+            final bytes = await pickedImage!.readAsBytes();
+            await supabase.storage.from('official_media').uploadBinary(
+                  storagePath,
+                  bytes,
+                  fileOptions: FileOptions(
+                    contentType: 'image/$ext',
+                  ),
+                );
+          } else {
+            final file = File(pickedImage!.path);
+            await supabase.storage.from('official_media').upload(
+                  storagePath,
+                  file,
+                  fileOptions: FileOptions(
+                    contentType: 'image/$ext',
+                  ),
+                );
+          }
+
+          imageUrl = supabase.storage.from('official_media').getPublicUrl(storagePath);
+        }
+
+        /// 📥 INSERT INTO TABLE
+        final insertData = {
+          'title': titleCtrl.text.trim(),
+        };
+
+        if (descCtrl.text.trim().isNotEmpty) {
+          insertData['short_description'] = descCtrl.text.trim();
+        }
+        if (fullDetailsCtrl.text.trim().isNotEmpty) {
+          insertData['full_details'] = fullDetailsCtrl.text.trim();
+        }
+        if (imageUrl != null) insertData['image_url'] = imageUrl;
+
+        await supabase.from('achievements').insert(insertData);
+
+        if (context.mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Achievement added successfully!")),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Error: $e"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     },
   );
 }
 
-// ---------------- COMMON DIALOG UI ----------------
+//////////////////////////////////////////////////
+/// --------------- COMMON UI -------------------
+//////////////////////////////////////////////////
+
 void _baseDialog(
   BuildContext context, {
   required String title,
   required List<Widget> children,
-  required VoidCallback onSubmit,
+  required Future<void> Function() onSubmit,
 }) {
   showModalBottomSheet(
     context: context,
@@ -98,20 +341,31 @@ void _baseDialog(
         right: 20,
         top: 20,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          ...children,
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(onPressed: onSubmit, child: const Text("Submit")),
-          ),
-          const SizedBox(height: 20),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ...children,
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async => await onSubmit(),
+                child: const Text("Submit"),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     ),
   );
-}
+} 
