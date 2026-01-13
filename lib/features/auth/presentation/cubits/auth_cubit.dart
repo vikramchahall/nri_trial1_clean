@@ -68,6 +68,7 @@ class AuthCubit extends Cubit<AuthState> {
     required String email,
     required String password,
     required String username,
+    required String phone, // ✅ ADD
     required String userType,
     String city = '',
     String town = '',
@@ -81,6 +82,7 @@ class AuthCubit extends Cubit<AuthState> {
         email: email,
         password: password,
         username: username,
+          phone: phone,
         userType: userType,
         city: city,
         town: town,

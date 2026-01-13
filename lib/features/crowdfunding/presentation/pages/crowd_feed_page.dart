@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../components/crowd_post_tile.dart';
 import '../cubits/crowd_cubit.dart';
 import '../cubits/crowd_states.dart';
@@ -22,9 +23,12 @@ class _CrowdFeedPageState extends State<CrowdFeedPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("V I L L A G E  F E E D"),
+        title: const Text(
+          "V I L L A G E  F E E D",
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         centerTitle: true,
-      
+        elevation: 0, // 🔥 flat Instagram look
       ),
       body: BlocBuilder<CrowdCubit, CrowdState>(
         builder: (context, state) {
@@ -34,15 +38,21 @@ class _CrowdFeedPageState extends State<CrowdFeedPage> {
 
           if (state is CrowdLoaded) {
             final crowds = state.crowds;
-            if (crowds.isEmpty) return const Center(child: Text("No causes yet."));
+            if (crowds.isEmpty) {
+              return const Center(child: Text("No causes yet."));
+            }
 
             return ListView.builder(
+              padding: EdgeInsets.zero, // 🔥 removes gaps
               itemCount: crowds.length,
-              itemBuilder: (context, index) => CrowdPostTile(
-                crowdPost: crowds[index],
-              ),
+              itemBuilder: (context, index) {
+                return CrowdPostTile(
+                  crowdPost: crowds[index],
+                );
+              },
             );
           }
+
           return const Center(child: Text("Error loading feed"));
         },
       ),

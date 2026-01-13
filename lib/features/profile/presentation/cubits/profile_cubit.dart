@@ -1,12 +1,13 @@
 import 'dart:typed_data';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../storage/domain/storage_repo.dart';
 import '../../domain/repos/profile_repo.dart';
+import '../../domain/entities/profile_user.dart';
 import 'profile_state.dart';
 import '../../../crowdfunding/domain/entities/crowd_post.dart';
-import '../../../auth/presentation/cubits/auth_cubit.dart';
 
 class ProfileCubit extends Cubit<ProfileState> {
   final ProfileRepo profileRepo;
@@ -37,7 +38,7 @@ class ProfileCubit extends Cubit<ProfileState> {
   }
 
   // ===============================
-  // 📦 FETCH USER POSTS (GRID)
+  // 📦 FETCH USER POSTS
   // ===============================
   Future<List<CrowdPost>> fetchUserPosts(String uid) async {
     try {
@@ -61,7 +62,7 @@ class ProfileCubit extends Cubit<ProfileState> {
   }
 
   // ===============================
-  // ✏️ UPDATE PROFILE (BIO + IMAGE)
+  // ✏️ UPDATE PROFILE
   // ===============================
   Future<void> updateProfile({
     required String uid,
@@ -99,25 +100,38 @@ class ProfileCubit extends Cubit<ProfileState> {
   }
 
   // ===============================
-  // 👥 FOLLOW / UNFOLLOW (FINAL, CORRECT)
+  // 👥 FOLLOW / UNFOLLOW (CORRECT)
   // ===============================
   Future<void> toggleFollow(
     String currentUid,
     String targetUid,
-    AuthCubit authCubit,
   ) async {
+    if (state is! ProfileLoaded) return;
+
+    final currentProfile =
+        (state as ProfileLoaded).profileUser;
+
     try {
-      // 1️⃣ Update follows table
+      // 1️⃣ Update backend
       await profileRepo.toggleFollow(currentUid, targetUid);
 
-      // 2️⃣ Refresh TARGET profile
-      await fetchUserProfile(targetUid);
+      // 2️⃣ Optimistic UI update (TARGET USER ONLY)
+      final updatedFollowers =
+          List<String>.from(currentProfile.followers);
 
-      // 3️⃣ Refresh AUTH (following list)
-      await authCubit.refreshCurrentUser();
+      if (updatedFollowers.contains(currentUid)) {
+        updatedFollowers.remove(currentUid);
+      } else {
+        updatedFollowers.add(currentUid);
+      }
 
-      // 4️⃣ 🔥 Refresh MY PROFILE (fixes stale counts)
-      await fetchUserProfile(currentUid);
+      emit(
+        ProfileLoaded(
+          currentProfile.copyWithProfile(
+            followers: updatedFollowers,
+          ),
+        ),
+      );
     } catch (e) {
       emit(ProfileError(e.toString()));
     }

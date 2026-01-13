@@ -22,23 +22,29 @@ class CrowdPostHeader extends StatelessWidget {
     final canDelete =
         currentUser?.uid == post.userId || (currentUser?.isDC ?? false);
 
-    return ListTile(
-      leading: _ProfileAvatar(userId: post.userId),
-      title: Text(
-        post.userName,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      subtitle: Text(
-        DateFormat('dd MMM, yyyy').format(post.timestamp),
-        style: const TextStyle(fontSize: 11),
-      ),
-      trailing: canDelete
-          ? IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () => _confirmDelete(context),
-            )
-          : null,
-    );
+   return Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 8),
+  child: ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: _ProfileAvatar(userId: post.userId),
+    title: Text(
+      post.userName,
+      style: const TextStyle(fontWeight: FontWeight.bold),
+    ),
+    subtitle: Text(
+      DateFormat('dd MMM, yyyy').format(post.timestamp),
+      style: const TextStyle(fontSize: 11),
+    ),
+    trailing: canDelete
+        ? IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            onPressed: () => _confirmDelete(context),
+          )
+        : null,
+  ),
+);
+
+    
   }
 
   void _confirmDelete(BuildContext context) {

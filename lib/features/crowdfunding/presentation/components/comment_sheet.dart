@@ -8,14 +8,28 @@ import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 
 void showCommentSheet(BuildContext context, CrowdPost post) {
+  final crowdCubit = context.read<CrowdCubit>();
+  final authCubit = context.read<AuthCubit>();
+
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-    ),
-    builder: (_) => _CommentSheet(post: post),
+    builder: (sheetContext) {
+      return MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: crowdCubit),
+          BlocProvider.value(value: authCubit),
+        ],
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: _CommentSheet(post: post),
+        ),
+      );
+    },
   );
 }
 
@@ -30,6 +44,9 @@ class _CommentSheet extends StatefulWidget {
 
 class _CommentSheetState extends State<_CommentSheet> {
   final TextEditingController _controller = TextEditingController();
+
+  /// 🔥 THIS is the key that forces instant UI refresh
+  int _forceRefresh = 0;
 
   void _addComment() {
     final user = context.read<AuthCubit>().currentUser;
@@ -56,105 +73,154 @@ class _CommentSheetState extends State<_CommentSheet> {
       expand: false,
       initialChildSize: 0.65,
       maxChildSize: 0.95,
-      builder: (_, scrollController) => Column(
-        children: [
-          const SizedBox(height: 10),
-          const Text(
-            "Comments",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const Divider(),
+      minChildSize: 0.4,
+      builder: (_, scrollController) {
+        return Column(
+          children: [
+            const SizedBox(height: 10),
+            const Text(
+              "Comments",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const Divider(height: 12),
 
-          Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: Supabase.instance.client
-                  .from('comments')
-                  .stream(primaryKey: ['id'])
-                  .eq('post_id', widget.post.id)
-                  .order('timestamp', ascending: false),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            // 🔥 COMMENTS LIST (FORCE-REFRESHED)
+            Flexible(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                key: ValueKey(_forceRefresh), // ✅ CRITICAL FIX
+                stream: Supabase.instance.client
+                    .from('comments')
+                    .stream(primaryKey: ['id'])
+                    .eq('post_id', widget.post.id)
+                    .order('timestamp', ascending: false),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
 
-                final comments = snapshot.data!;
-                if (comments.isEmpty) {
-                  return const Center(child: Text("No comments yet."));
-                }
+                  final comments = snapshot.data!;
+                  if (comments.isEmpty) {
+                    return const Center(child: Text("No comments yet."));
+                  }
 
-                return ListView.builder(
-                  controller: scrollController,
-                  itemCount: comments.length,
-                  itemBuilder: (context, index) {
-                    final data = comments[index];
+                  return ListView.builder(
+                    controller: scrollController,
+                    itemCount: comments.length,
+                    itemBuilder: (context, index) {
+                      final data = comments[index];
 
-                    final canDelete =
-                        currentUser != null &&
-                        (currentUser.uid == data['user_id'] ||
-                            currentUser.uid == widget.post.userId);
+                      final canDelete =
+                          currentUser != null &&
+                          (currentUser.uid == data['user_id'] ||
+                              currentUser.uid == widget.post.userId);
 
-                    return ListTile(
-                      leading: const CircleAvatar(
-                        radius: 15,
-                        child: Icon(Icons.person, size: 15),
-                      ),
-                      title: Text(
-                        "@${data['user_name']}",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                      return ListTile(
+                        leading: const CircleAvatar(
+                          radius: 15,
+                          child: Icon(Icons.person, size: 15),
+                        ),
+                        title: Text(
+                          "@${data['user_name']}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        subtitle: Text(data['text'] ?? ''),
+                        trailing: canDelete
+                            ? IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                ),
+                                onPressed: () async {
+                                  final confirm =
+                                      await showDialog<bool>(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title:
+                                          const Text("Delete comment?"),
+                                      content: const Text(
+                                        "This action cannot be undone.\nAre you sure?",
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(
+                                                  context, false),
+                                          child: const Text("Cancel"),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(
+                                                  context, true),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.red,
+                                          ),
+                                          child: const Text("Delete"),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirm != true) return;
+
+                                  // ✅ DELETE FROM DB
+                                  context
+                                      .read<CrowdCubit>()
+                                      .deleteComment(
+                                        widget.post.id,
+                                        data['id'].toString(),
+                                      );
+
+                                  // ✅ FORCE UI UPDATE (INSTANT DISAPPEAR)
+                                  setState(() {
+                                    _forceRefresh++;
+                                  });
+                                },
+                              )
+                            : null,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            // 🔥 INPUT BAR
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        minLines: 1,
+                        maxLines: 4,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        decoration: const InputDecoration(
+                          hintText: "Add a comment...",
+                          border: InputBorder.none,
                         ),
                       ),
-                      subtitle: Text(data['text'] ?? ''),
-                      trailing: canDelete
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                size: 18,
-                              ),
-                              onPressed: () => context
-                                  .read<CrowdCubit>()
-                                  .deleteComment(
-                                    widget.post.id,
-                                    data['id'].toString(),
-                                  ),
-                            )
-                          : null,
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-
-          Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-              left: 15,
-              right: 15,
-              top: 10,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      hintText: "Add a comment...",
-                      border: InputBorder.none,
                     ),
-                  ),
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Colors.green),
+                      onPressed: _addComment,
+                    ),
+                  ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Colors.green),
-                  onPressed: _addComment,
-                ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }

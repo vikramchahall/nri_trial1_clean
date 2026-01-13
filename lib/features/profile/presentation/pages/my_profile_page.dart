@@ -2,30 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/entities/profile_user.dart';
-import '../../../auth/presentation/cubits/auth_cubit.dart';
 import '../cubits/profile_cubit.dart';
 import '../cubits/profile_state.dart';
+import '../../data/supabase_profile_repo.dart';
+import '../../../storage/data/supabase_storage_repo.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
+
 import 'profile_page_content.dart';
 import 'profile_edit_page.dart';
 
-class MyProfilePage extends StatefulWidget {
+class MyProfilePage extends StatelessWidget {
   final String uid;
   const MyProfilePage({super.key, required this.uid});
 
-  @override
-  State<MyProfilePage> createState() => _MyProfilePageState();
-}
-
-class _MyProfilePageState extends State<MyProfilePage> {
-  @override
-  void initState() {
-    super.initState();
-    // 🔥 ALWAYS fetch MY profile when page opens
-    context.read<ProfileCubit>().fetchUserProfile(widget.uid);
-  }
-
   // ================= SETTINGS BOTTOM SHEET =================
-  void _showSettingsTray(BuildContext context, ProfileUser user) {
+  void _showSettingsTray(
+    BuildContext context,
+    ProfileUser user,
+  ) {
     final authCubit = context.read<AuthCubit>();
 
     showModalBottomSheet(
@@ -61,7 +55,10 @@ class _MyProfilePageState extends State<MyProfilePage> {
 
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text("Logout", style: TextStyle(color: Colors.red)),
+            title: const Text(
+              "Logout",
+              style: TextStyle(color: Colors.red),
+            ),
             onTap: () {
               Navigator.pop(sheetContext);
               authCubit.logout();
@@ -74,42 +71,48 @@ class _MyProfilePageState extends State<MyProfilePage> {
     );
   }
 
-  // ================= UI =================
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ProfileCubit, ProfileState>(
-      builder: (context, state) {
-        if (state is ProfileInitial || state is ProfileLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    /// 🔐 PRIVATE ProfileCubit — scoped ONLY to this tab
+    return BlocProvider(
+      create: (_) => ProfileCubit(
+        profileRepo: SupabaseProfileRepo(),
+        storageRepo: SupabaseStorageRepo(),
+      )..fetchUserProfile(uid),
+      child: BlocBuilder<ProfileCubit, ProfileState>(
+        builder: (context, state) {
+          if (state is ProfileInitial || state is ProfileLoading) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
 
-        if (state is ProfileError) {
+          if (state is ProfileError) {
+            return Scaffold(
+              body: Center(child: Text(state.message)),
+            );
+          }
+
+          if (state is! ProfileLoaded) {
+            return const SizedBox.shrink();
+          }
+
+          final ProfileUser user = state.profileUser;
+
           return Scaffold(
-            body: Center(child: Text(state.message)),
+            appBar: AppBar(
+              title: Text("@${user.username} (Me)"),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () => _showSettingsTray(context, user),
+                ),
+              ],
+            ),
+            body: ProfilePageContent(user: user),
           );
-        }
-
-        if (state is! ProfileLoaded) {
-          return const SizedBox.shrink();
-        }
-
-        final ProfileUser user = state.profileUser;
-
-        return Scaffold(
-          appBar: AppBar(
-            title: Text("@${user.username} (Me)"),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.settings),
-                onPressed: () => _showSettingsTray(context, user),
-              ),
-            ],
-          ),
-          body: ProfilePageContent(user: user),
-        );
-      },
+        },
+      ),
     );
   }
 }

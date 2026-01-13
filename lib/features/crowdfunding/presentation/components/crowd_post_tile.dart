@@ -15,40 +15,31 @@ class CrowdPostTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 👤 Header
-          CrowdPostHeader(post: crowdPost),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 👤 Header (edge-to-edge)
+        CrowdPostHeader(post: crowdPost),
 
-          // 🎥 Media
-          CrowdPostMedia(post: crowdPost),
+        // 🎥 Media (square, full width)
+        CrowdPostMedia(post: crowdPost),
 
-          // ❤️ Actions (likes, comments, support)
-          CrowdPostActions(post: crowdPost),
+        // ❤️ Actions
+        CrowdPostActions(post: crowdPost),
 
-          // 📝 Text
-          if (crowdPost.text.trim().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Text(crowdPost.text),
-            ),
-        ],
-      ),
+        // 📝 Caption
+        if (crowdPost.text.trim().isNotEmpty)
+Padding(
+  padding: const EdgeInsets.fromLTRB(12, 6, 12, 14),
+  child: Text(
+    crowdPost.text,
+    style: const TextStyle(fontSize: 14),
+  ),
+),
+
+        // ➖ Thin divider between posts (Instagram style)
+        const Divider(height: 1, thickness: 0.3),
+      ],
     );
   }
 }

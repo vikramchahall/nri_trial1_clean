@@ -7,7 +7,7 @@ class AppUser {
   final bool isDC;
 
   // EXTRA PROFILE FIELDS
-  final String phoneNumber;
+  final String phone;
   final String city;
   final String town;
   final String blockName;
@@ -24,7 +24,7 @@ class AppUser {
     required this.userType,
     required this.isAdmin,
     this.isDC = false,
-    this.phoneNumber = '',
+    this.phone = '',
     this.city = '',
     this.town = '',
     this.blockName = '',
@@ -45,7 +45,7 @@ class AppUser {
         'user_type': userType,
         'is_admin': isAdmin,
         'is_dc': isDC,
-        'phone_number': phoneNumber,
+        'phone': phone,
         'city': city,
         'town': town,
         'block_name': blockName,
@@ -64,7 +64,7 @@ class AppUser {
       userType: json['user_type'] ?? 'Supporter',
       isAdmin: json['is_admin'] ?? false,
       isDC: json['is_dc'] ?? false,
-      phoneNumber: json['phone_number'] ?? '',
+      phone: json['phone'] ?? '',
       city: json['city'] ?? '',
       town: json['town'] ?? '',
       blockName: json['block_name'] ?? '',
@@ -93,7 +93,7 @@ class AppUser {
     String? userType,
     bool? isAdmin,
     bool? isDC,
-    String? phoneNumber,
+    String? phone,
     String? city,
     String? town,
     String? blockName,
@@ -108,7 +108,7 @@ class AppUser {
       userType: userType ?? this.userType,
       isAdmin: isAdmin ?? this.isAdmin,
       isDC: isDC ?? this.isDC,
-      phoneNumber: phoneNumber ?? this.phoneNumber,
+      phone: phone ?? this.phone,
       city: city ?? this.city,
       town: town ?? this.town,
       blockName: blockName ?? this.blockName,

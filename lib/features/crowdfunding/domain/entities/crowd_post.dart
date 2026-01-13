@@ -9,7 +9,10 @@ class CrowdPost {
   final DateTime timestamp;
   final List<String> likes;
 
-  CrowdPost({
+  // ✅ COMMENT COUNT (REQUIRED)
+  final int commentCount;
+
+  const CrowdPost({
     required this.id,
     required this.userId,
     required this.userName,
@@ -19,6 +22,7 @@ class CrowdPost {
     required this.raisedAmount,
     required this.timestamp,
     this.likes = const [],
+    this.commentCount = 0, // ✅ DEFAULT (VERY IMPORTANT)
   });
 
   // ===============================
@@ -32,6 +36,8 @@ class CrowdPost {
         'target_amount': targetAmount,
         'raised_amount': raisedAmount,
         'timestamp': timestamp.toIso8601String(),
+        'likes': likes,
+        'comment_count': commentCount, // optional (future use)
       };
 
   // ===============================
@@ -46,9 +52,38 @@ class CrowdPost {
       imageUrl: json['image_url'] ?? '',
       targetAmount: (json['target_amount'] ?? 0).toDouble(),
       raisedAmount: (json['raised_amount'] ?? 0).toDouble(),
-      // Supabase returns timestamps as ISO 8601 strings
       timestamp: DateTime.parse(json['timestamp']),
       likes: List<String>.from(json['likes'] ?? []),
+      commentCount: json['comment_count'] ?? 0, // ✅ SAFE DEFAULT
+    );
+  }
+
+  // ===============================
+  // 🔁 COPY WITH (CUBIT FRIENDLY)
+  // ===============================
+  CrowdPost copyWith({
+    String? id,
+    String? userId,
+    String? userName,
+    String? text,
+    String? imageUrl,
+    double? targetAmount,
+    double? raisedAmount,
+    DateTime? timestamp,
+    List<String>? likes,
+    int? commentCount,
+  }) {
+    return CrowdPost(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      text: text ?? this.text,
+      imageUrl: imageUrl ?? this.imageUrl,
+      targetAmount: targetAmount ?? this.targetAmount,
+      raisedAmount: raisedAmount ?? this.raisedAmount,
+      timestamp: timestamp ?? this.timestamp,
+      likes: likes ?? this.likes,
+      commentCount: commentCount ?? this.commentCount,
     );
   }
 
