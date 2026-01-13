@@ -62,6 +62,8 @@ class _SearchViewState extends State<_SearchView> {
                 onClear: () {
                   _controller.clear();
                   cubit.clear();
+                  context.read<SearchCubit>().clear(); // clears results
+  FocusScope.of(context).unfocus();
                 },
               ),
               body: Stack(

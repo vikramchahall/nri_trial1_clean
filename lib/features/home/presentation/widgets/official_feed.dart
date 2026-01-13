@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nri_trial1_clean/utlis/date_formatter.dart';
 
-
 class OfficialFeed extends StatelessWidget {
   const OfficialFeed({super.key});
 
@@ -36,32 +35,52 @@ class OfficialFeed extends StatelessWidget {
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: Colors.green[700],
-                borderRadius: BorderRadius.circular(15),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: ListTile(
                 contentPadding: const EdgeInsets.all(15),
+
+                // ✅ TITLE (VISIBLE)
                 title: Text(
                   data['title'] ?? '',
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600,
                     fontSize: 16,
                   ),
                 ),
+
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ✅ MESSAGE (VISIBLE)
                       Text(
                         data['message'] ?? '',
-                        style: const TextStyle(color: Colors.white70),
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 14,
+                          height: 1.4,
+                        ),
                       ),
                       const SizedBox(height: 8),
+
+                      // ✅ DATE (SUBTLE)
                       Text(
                         formatDate(data['timestamp']),
-                        style: const TextStyle(color: Colors.white60, fontSize: 11),
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ),

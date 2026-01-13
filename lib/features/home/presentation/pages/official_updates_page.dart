@@ -39,7 +39,7 @@ class OfficialUpdatesPage extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(left: 20, top: 10, bottom: 15),
             child: Text(
-              "Village Achievements",
+              "Past Achievements",
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),

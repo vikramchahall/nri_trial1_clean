@@ -66,7 +66,12 @@ class MyApp extends StatelessWidget {
         ),
 
         // 👤 PROFILE
-
+        BlocProvider(
+          create: (_) => ProfileCubit(
+            profileRepo: SupabaseProfileRepo(),
+            storageRepo: SupabaseStorageRepo(),
+          ),
+        ),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -87,44 +92,43 @@ class MyApp extends StatelessWidget {
               );
             }
           },
-builder: (context, state) {
-  // 0️⃣ SPLASH / CHECKING SESSION
-  if (state is AuthInitial) {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(color: Colors.green),
-      ),
-    );
-  }
+          builder: (context, state) {
+            // ✅ 0️⃣ SPLASH / CHECKING SESSION (FIXES LOGIN FLASH)
+            if (state is AuthInitial) {
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(color: Colors.green),
+                ),
+              );
+            }
 
-  // 1️⃣ LOGGED IN
-  if (state is Authenticated) {
-    return const HomePage();
-  }
+            // 1️⃣ LOGGED IN
+            if (state is Authenticated) {
+              return const HomePage();
+            }
 
-  // 2️⃣ EMAIL VERIFICATION (🔥 MUST COME EARLY)
-  if (state is NeedVerification) {
-    return VerificationPage(email: state.email);
-  }
+            // 2️⃣ 🔐 RESET PASSWORD (OTP SCREEN)
+            if (state is ResetPasswordOtpMode) {
+              return ResetPasswordOtpPage(email: state.email);
+            }
 
-  // 3️⃣ RESET PASSWORD (OTP)
-  if (state is ResetPasswordOtpMode) {
-    return ResetPasswordOtpPage(email: state.email);
-  }
+            // 3️⃣ EMAIL VERIFICATION
+            if (state is NeedVerification) {
+              return VerificationPage(email: state.email);
+            }
 
-  // 4️⃣ LOADING
-  if (state is AuthLoading) {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(color: Colors.green),
-      ),
-    );
-  }
+            // 4️⃣ LOADING (API CALLS)
+            if (state is AuthLoading) {
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(color: Colors.green),
+                ),
+              );
+            }
 
-  // 5️⃣ DEFAULT → LOGIN / REGISTER
-  return const AuthPage();
-},
-
+            // 5️⃣ DEFAULT → LOGIN / REGISTER
+            return const AuthPage();
+          },
         ),
       ),
     );

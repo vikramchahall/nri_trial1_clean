@@ -9,6 +9,7 @@ class SearchCubit extends Cubit<SearchState> {
   Timer? _debounce;
 
   SearchCubit(this.repository) : super(const SearchState());
+  
 
   void onQueryChanged(String query) {
     _debounce?.cancel();
@@ -37,11 +38,13 @@ class SearchCubit extends Cubit<SearchState> {
       }
     });
   }
+  
 
   void clear() {
     _debounce?.cancel();
     emit(const SearchState());
   }
+  
 
   @override
   Future<void> close() {
