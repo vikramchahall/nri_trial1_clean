@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nri_trial1_clean/utlis/date_formatter.dart';
+import 'package:nri_trial1_clean/components/square_media_box.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
+
 
 class OfficialFeed extends StatelessWidget {
   const OfficialFeed({super.key});
@@ -8,12 +13,16 @@ class OfficialFeed extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
+    // Get current user's isDC status
+    final user = context.read<AuthCubit>().currentUser;
+    final canDelete = user?.isDC ?? false;
 
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: supabase
           .from('official_updates')
           .stream(primaryKey: ['id'])
-          .order('timestamp', ascending: false),
+          .order('timestamp', ascending: false)
+          .limit(50),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -33,6 +42,7 @@ class OfficialFeed extends StatelessWidget {
             final data = updates[index];
 
             return Container(
+              key: ValueKey(data['id']),
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -45,45 +55,78 @@ class OfficialFeed extends StatelessWidget {
                   ),
                 ],
               ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(15),
+              child: Padding(
+                padding: const EdgeInsets.all(15),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    /// 🔹 TITLE ROW + DELETE BUTTON (only for DC users)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            data['title'] ?? '',
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        // Only show delete button if user is DC
+                        if (canDelete)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            color: Colors.redAccent,
+                            onPressed: () async {
+                              final confirm =
+                                  await _confirmDelete(context);
 
-                // ✅ TITLE (VISIBLE)
-                title: Text(
-                  data['title'] ?? '',
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                ),
+                              if (confirm) {
+                                await _deleteOfficialPost(data);
+                              }
+                            },
+                          ),
+                      ],
+                    ),
 
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ✅ MESSAGE (VISIBLE)
-                      Text(
-                        data['message'] ?? '',
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontSize: 14,
-                          height: 1.4,
+                    const SizedBox(height: 6),
+
+                    /// 🔹 MESSAGE
+                    Text(
+                      data['message'] ?? '',
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+
+                    /// 🔹 MEDIA (IMAGE / VIDEO)
+                    if (data['media_url'] != null &&
+                        data['media_type'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: SquareMediaBox(
+                          // 🔥 cache busting
+                          url:
+                              "${data['media_url']}?v=${data['timestamp']}",
+                          type: data['media_type'], // image | video
                         ),
                       ),
-                      const SizedBox(height: 8),
 
-                      // ✅ DATE (SUBTLE)
-                      Text(
-                        formatDate(data['timestamp']),
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 11,
-                        ),
+                    const SizedBox(height: 8),
+
+                    /// 🔹 DATE
+                    Text(
+                      formatDate(data['timestamp']),
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 11,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -92,4 +135,56 @@ class OfficialFeed extends StatelessWidget {
       },
     );
   }
+}
+
+/// ================= CONFIRM DIALOG =================
+
+Future<bool> _confirmDelete(BuildContext context) async {
+  return await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Delete post?"),
+          content:
+              const Text("This action cannot be undone."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(
+                "Delete",
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
+
+/// ================= DELETE LOGIC =================
+
+Future<void> _deleteOfficialPost(Map<String, dynamic> data) async {
+  final supabase = Supabase.instance.client;
+
+  /// 🧹 Delete media from storage
+  if (data['media_url'] != null) {
+    final uri = Uri.parse(data['media_url']);
+    final path = uri.pathSegments
+        .skipWhile((e) => e != 'official_media')
+        .skip(1)
+        .join('/');
+
+    await supabase.storage
+        .from('official_media')
+        .remove([path]);
+  }
+
+  /// 🗑️ Delete DB row
+  await supabase
+      .from('official_updates')
+      .delete()
+      .eq('id', data['id']);
 }
