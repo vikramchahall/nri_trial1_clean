@@ -47,17 +47,18 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    context.read<AuthCubit>().registerUser(
-          email: emailController.text.trim(),
-          password: pwController.text,
-          username: usernameController.text.trim(),
-
-          userType: selectedUserType,
-          city: cityController.text.trim(),
-          town: townController.text.trim(),
-          block: blockController.text.trim(),
-          panchayatId: panchayatIdController.text.trim(),
-        );
+context.read<AuthCubit>().registerUser(
+  email: emailController.text,
+  password: pwController.text,
+  username: usernameController.text,
+  userType: selectedUserType,
+  // MAKE SURE THESE ARE NOT MISSING:
+  city: cityController.text,
+  town: townController.text,
+  block: blockController.text,
+  panchayatId: panchayatIdController.text,
+  phone: phoneController.text,
+);
   }
 
   // ================= ERROR HANDLER =================

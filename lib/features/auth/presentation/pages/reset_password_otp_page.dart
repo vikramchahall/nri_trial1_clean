@@ -28,37 +28,78 @@ class _ResetPasswordOtpPageState extends State<ResetPasswordOtpPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(25.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.lock_reset, size: 80, color: Colors.green),
-              const SizedBox(height: 20),
-              const Text("Set New Password", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              Text("Enter the 6-digit code sent to ${widget.email}", textAlign: TextAlign.center),
-              const SizedBox(height: 30),
-              
-              MyTextField(controller: otpController, hintText: "6-Digit OTP Code", obscureText: false),
-              const SizedBox(height: 10),
-              MyTextField(controller: passController, hintText: "New Password", obscureText: true),
-              
-              const SizedBox(height: 25),
-              MyButton(onTap: onResetTapped, text: "Reset Password"),
-              
-              TextButton(
-                onPressed: () => context.read<AuthCubit>().goToLogin(),
-                child: const Text("Back to Login", style: TextStyle(color: Colors.grey)),
-              ),
-            ],
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    resizeToAvoidBottomInset: true,
+    body: SafeArea(
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.all(25.0),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height -
+                MediaQuery.of(context).padding.top -
+                MediaQuery.of(context).padding.bottom,
+          ),
+          child: IntrinsicHeight(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock_reset,
+                    size: 80, color: Colors.green),
+                const SizedBox(height: 20),
+
+                const Text(
+                  "Set New Password",
+                  style: TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+
+                Text(
+                  "Enter the 6-digit code sent to ${widget.email}",
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
+
+                MyTextField(
+                  controller: otpController,
+                  hintText: "6-Digit OTP Code",
+                  obscureText: false,
+                ),
+                const SizedBox(height: 10),
+
+                MyTextField(
+                  controller: passController,
+                  hintText: "New Password",
+                  obscureText: true,
+                ),
+
+                const SizedBox(height: 25),
+
+                MyButton(
+                  onTap: onResetTapped,
+                  text: "Reset Password",
+                ),
+
+                const SizedBox(height: 10),
+
+                TextButton(
+                  onPressed: () =>
+                      context.read<AuthCubit>().goToLogin(),
+                  child: const Text(
+                    "Back to Login",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 }

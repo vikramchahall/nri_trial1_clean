@@ -12,6 +12,7 @@ abstract class AuthRepo {
     required String email,
     required String password,
     required String username,
+    required String phone, // ✅ ADD
     required String userType,
     String city,
     String town,

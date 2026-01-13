@@ -4,7 +4,7 @@ class ProfileUser extends AppUser {
   final String bio;
   final String profileImageUrl;
 
-  // FOLLOW SYSTEM (kept for UI stability)
+  // FOLLOW SYSTEM
   final List<String> followers;
   final List<String> following;
 
@@ -16,7 +16,7 @@ class ProfileUser extends AppUser {
     required super.userType,
     required super.isAdmin,
     required super.isDC,
-    required super.phoneNumber,
+    required super.phone,
     required super.city,
     required super.town,
     required super.blockName,
@@ -32,29 +32,32 @@ class ProfileUser extends AppUser {
   });
 
   // ===============================
-  // 🔁 COPY (USED BY ProfileCubit)
+  // 🔁 PROFILE COPY (NO OVERRIDE)
+  // ===============================
   ProfileUser copyWithProfile({
-  String? bio,
-  String? profileImageUrl,
-}) {
-  return ProfileUser(
-    uid: uid,
-    email: email,
-    username: username,
-    userType: userType,
-    isAdmin: isAdmin,
-    isDC: isDC,
-    phoneNumber: phoneNumber,
-    city: city,
-    town: town,
-    blockName: blockName,
-    panchayatId: panchayatId,
-    bio: bio ?? this.bio,
-    profileImageUrl: profileImageUrl ?? this.profileImageUrl,
-    followers: followers,
-    following: following,
-  );
-}
+    String? bio,
+    String? profileImageUrl,
+    List<String>? followers,
+    List<String>? following,
+  }) {
+    return ProfileUser(
+      uid: uid,
+      email: email,
+      username: username,
+      userType: userType,
+      isAdmin: isAdmin,
+      isDC: isDC,
+      phone: phone.toString(),
+      city: city,
+      town: town,
+      blockName: blockName,
+      panchayatId: panchayatId,
+      bio: bio ?? this.bio,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      followers: followers ?? this.followers,
+      following: following ?? this.following,
+    );
+  }
 
   // ===============================
   // 🔄 TO SUPABASE
@@ -65,6 +68,8 @@ class ProfileUser extends AppUser {
     map.addAll({
       'bio': bio,
       'profile_image_url': profileImageUrl,
+      'followers': followers,
+      'following': following,
     });
     return map;
   }
@@ -80,7 +85,8 @@ class ProfileUser extends AppUser {
       userType: json['user_type'] ?? 'Supporter',
       isAdmin: json['is_admin'] ?? false,
       isDC: json['is_dc'] ?? false,
-      phoneNumber: json['phone_number'] ?? '',
+      phone: json['phone']?.toString() ?? '',
+
       city: json['city'] ?? '',
       town: json['town'] ?? '',
       blockName: json['block_name'] ?? '',

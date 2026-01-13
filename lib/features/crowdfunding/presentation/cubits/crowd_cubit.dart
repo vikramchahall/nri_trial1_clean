@@ -39,6 +39,7 @@ class CrowdCubit extends Cubit<CrowdState> {
     required String uId,
     required String uName,
     required String customFileName, // ✅ NEW
+     // ✅ NEW
   }) async {
     try {
       emit(CrowdUploading());
@@ -72,6 +73,7 @@ class CrowdCubit extends Cubit<CrowdState> {
         targetAmount: target,
         raisedAmount: 0,
         likes: [],
+        commentCount: 0,
       );
 
       await crowdRepo.createPost(post);
@@ -102,27 +104,50 @@ class CrowdCubit extends Cubit<CrowdState> {
   // ===============================
   // 💬 COMMENTS
   // ===============================
-  Future<void> addComment(
-    String postId,
-    Comment comment,
-  ) async {
-    try {
-      await crowdRepo.addComment(postId, comment);
-    } catch (e) {
-      emit(CrowdError(e.toString()));
-    }
-  }
+Future<void> addComment(String postId, Comment comment) async {
+  if (state is! CrowdLoaded) return;
 
-  Future<void> deleteComment(
-    String postId,
-    String commentId,
-  ) async {
-    try {
-      await crowdRepo.deleteComment(postId, commentId);
-    } catch (e) {
-      emit(CrowdError(e.toString()));
-    }
+  final current = state as CrowdLoaded;
+  final posts = List<CrowdPost>.from(current.crowds);
+
+  final index = posts.indexWhere((p) => p.id == postId);
+  if (index == -1) return;
+
+  posts[index] = posts[index].copyWith(
+    commentCount: posts[index].commentCount + 1,
+  );
+
+  emit(CrowdLoaded(posts));
+
+  try {
+    await crowdRepo.addComment(postId, comment);
+  } catch (_) {}
+}
+
+Future<void> deleteComment(String postId, String commentId) async {
+  if (state is! CrowdLoaded) return;
+
+  final current = state as CrowdLoaded;
+  final posts = List<CrowdPost>.from(current.crowds);
+
+  final index = posts.indexWhere((p) => p.id == postId);
+  if (index == -1) return;
+
+  // ✅ INSTANT UI UPDATE
+  posts[index] = posts[index].copyWith(
+    commentCount:
+        posts[index].commentCount > 0 ? posts[index].commentCount - 1 : 0,
+  );
+
+  emit(CrowdLoaded(posts));
+
+  // 🔥 Delete in background
+  try {
+    await crowdRepo.deleteComment(postId, commentId);
+  } catch (_) {
+    // optional rollback ignored (Instagram also ignores)
   }
+}
 
   // ===============================
   // ❤️ LIKE / UNLIKE (OPTIMISTIC)

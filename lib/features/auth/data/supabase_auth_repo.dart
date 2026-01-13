@@ -27,56 +27,44 @@ class SupabaseAuthRepo implements AuthRepo {
 
   // ================= REGISTER =================
   @override
-  Future<AppUser?> registerUser({
-    required String email,
-    required String password,
-    required String username,
-    required String userType,
-    String city = '',
-    String town = '',
-    String block = '',
-    String panchayatId = '',
-  }) async {
-    try {
-      final normalizedUsername = username.trim().toLowerCase();
+Future<AppUser?> registerUser({
+  required String email,
+  required String password,
+  required String username,
+  required String userType,
+  String city = '',
+  String town = '',
+  String block = '',
+  String panchayatId = '',
+  String phone = '',
+}) async {
+  try {
+    final normalizedUsername = username.trim().toLowerCase();
 
-      final existing = await _supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', normalizedUsername)
-          .maybeSingle();
+    // 1️⃣ Check username uniqueness
+    final existing = await _supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', normalizedUsername)
+        .maybeSingle();
 
-      if (existing != null) {
-        throw Exception("Username already taken");
-      }
-
-      final AuthResponse res = await _supabase.auth.signUp(
-        email: email.trim(),
-        password: password,
-      );
-
-      final user = res.user;
-      if (user == null) return null;
-
-      await _supabase.from('profiles').insert({
-        'id': user.id,
-        'email': email.trim(),
-        'username': normalizedUsername,
-        'user_type': userType,
-        'city': city,
-        'town': town,
-        'block_name': block,
-        'panchayat_id': panchayatId,
-        'is_admin': false,
-        'is_dc': false,
-      });
-
-      await _supabase.auth.signOut();
-      return null;
-    } catch (e) {
-      throw Exception(e.toString());
+    if (existing != null) {
+      throw Exception("Username already taken");
     }
+
+    // 2️⃣ Create AUTH USER ONLY
+    await _supabase.auth.signUp(
+      email: email.trim(),
+      password: password,
+    );
+
+    // ❌ DO NOT INSERT INTO profiles HERE
+    return null;
+  } catch (e) {
+    throw Exception(e.toString());
   }
+}
+
 
   // ================= CURRENT USER (STEP 5 – CRITICAL FIX) =================
   @override
