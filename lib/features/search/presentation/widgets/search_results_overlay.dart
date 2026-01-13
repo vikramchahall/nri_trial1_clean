@@ -59,6 +59,7 @@ class SearchResultsOverlay extends StatelessWidget {
                       UserProfilePage(uid: user['id']),
                 ),
               );
+              
               onClose();
             },
           );

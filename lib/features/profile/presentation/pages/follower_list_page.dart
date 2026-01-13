@@ -62,6 +62,7 @@ class FollowerListPage extends StatelessWidget {
                                 UserProfilePage(uid: user['id']),
                           ),
                         );
+                        
                       },
                     );
                   },

@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/entities/crowd_post.dart';
 import '../domain/entities/comment.dart';
 import '../domain/repos/crowd_repo.dart';
+import 'package:flutter/foundation.dart';
+
 
 class SupabaseCrowdRepo implements CrowdRepo {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -47,7 +49,22 @@ class SupabaseCrowdRepo implements CrowdRepo {
 
   @override
   Future<void> createPost(CrowdPost post) async {
-    await _supabase.from('posts').insert(post.toJson());
+    try {
+      // These keys MUST match the SQL column names exactly
+      await _supabase.from('posts').insert({
+        'user_id': post.userId,      // NOT uId or userId
+        'user_name': post.userName,  // NOT uName or userName
+        'text': post.text,
+        'image_url': post.imageUrl,
+        'target_amount': post.targetAmount,
+        'raised_amount': post.raisedAmount,
+        'likes': [],                 // Matches the JSONB column
+      });
+    } catch (e) {
+      // This will print the exact reason if it fails again
+      debugPrint("UPLOAD ERROR: $e");
+      throw Exception("Failed to save post: $e");
+    }
   }
 
   @override
