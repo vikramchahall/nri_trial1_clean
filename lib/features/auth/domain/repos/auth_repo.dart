@@ -40,6 +40,8 @@ abstract class AuthRepo {
   Future<void> sendEmailVerification();
   Future<bool> checkEmailVerified();
 
+  Future<void> deleteAccount(String password);
+
   // ================= LOGOUT =================
   Future<void> logout();
 }

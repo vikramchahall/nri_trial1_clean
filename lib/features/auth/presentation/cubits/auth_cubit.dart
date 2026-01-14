@@ -213,6 +213,28 @@ class AuthCubit extends Cubit<AuthState> {
     emit(Unauthenticated());
   }
 
+  Future<void> deleteAccount(String password) async {
+  try {
+    emit(AuthLoading());
+    
+    await authRepo.deleteAccount(password);
+    
+    // Clear current user and emit unauthenticated state
+    _currentUser = null;
+    emit(Unauthenticated());
+  } catch (e) {
+    // Re-emit the current authenticated state if deletion fails
+    if (_currentUser != null) {
+      emit(Authenticated(_currentUser!));
+    } else {
+      emit(Unauthenticated());
+    }
+    
+    // Re-throw the error so the UI can handle it
+    rethrow;
+  }
+}
+
   // ==================================================
   // LOGOUT
   // ==================================================

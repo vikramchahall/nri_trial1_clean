@@ -121,6 +121,48 @@ class SupabaseAuthRepo implements AuthRepo {
     });
   }
 
+  // ================= DELETE ACCOUNT =================
+@override
+Future<void> deleteAccount(String password) async {
+  try {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      throw Exception('No user logged in');
+    }
+
+    final email = user.email;
+    if (email == null) {
+      throw Exception('Email not found');
+    }
+
+    // 1️⃣ Re-authenticate user
+    await _supabase.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+
+    // 2️⃣ Delete profile data
+    await _supabase
+        .from('profiles')
+        .delete()
+        .eq('id', user.id);
+
+    // 3️⃣ Delete auth user (RPC)
+    await _supabase.rpc('delete_user');
+
+    // 4️⃣ Logout
+    await _supabase.auth.signOut();
+  } on AuthException catch (e) {
+    if (e.message.contains('Invalid login credentials')) {
+      throw Exception('Incorrect password');
+    }
+    throw Exception(e.message);
+  } catch (e) {
+    throw Exception('Failed to delete account');
+  }
+}
+
+
   // ================= PASSWORD RESET =================
   @override
   Future<void> sendPasswordResetEmail(String email) async {

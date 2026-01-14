@@ -4,7 +4,7 @@
 // ============================================
 import 'package:flutter/material.dart';
 
-import 'package:flutter/material.dart';
+
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
@@ -229,13 +229,58 @@ class SettingsPage extends StatelessWidget {
   }
 
   void _confirmDeleteAccount(BuildContext context) {
-    // TODO: Implement account deletion logic with Supabase
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Account deletion will be implemented soon'),
+  final passwordController = TextEditingController();
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Confirm Password'),
+      content: TextField(
+        controller: passwordController,
+        obscureText: true,
+        decoration: const InputDecoration(
+          labelText: 'Enter your password',
+        ),
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          onPressed: () async {
+            Navigator.pop(ctx);
+
+            try {
+              await context
+                  .read<AuthCubit>()
+                  .deleteAccount(passwordController.text.trim());
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Account deleted successfully'),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString()),
+                  ),
+                );
+              }
+            }
+          },
+          child: const Text('Delete Account'),
+        ),
+      ],
+    ),
+  );
+}
+
 }
 
 class _SettingsItem {
