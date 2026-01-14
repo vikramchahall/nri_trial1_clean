@@ -6,6 +6,7 @@ import '../widgets/user_counter.dart';
 import '../widgets/achievement_plate.dart';
 import '../widgets/official_feed.dart';
 import '../widgets/official_post_dialog.dart';
+import 'user_management_page.dart';  // THIS IS THE NEW IMPORT
 
 class OfficialUpdatesPage extends StatelessWidget {
   const OfficialUpdatesPage({super.key});
@@ -25,13 +26,25 @@ class OfficialUpdatesPage extends StatelessWidget {
         backgroundColor: Colors.white,
         foregroundColor: Colors.green[900],
         elevation: 0,
-        actions: [
-          if (user?.isDC ?? false)
-            IconButton(
-              icon: const Icon(Icons.add_business),
-              onPressed: () => showOfficialPostDialog(context),
-            ),
-        ],
+ actions: [
+  if (user?.isDC ?? false)
+    IconButton(
+      icon: const Icon(Icons.people),
+      tooltip: 'User Management',
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const UserManagementPage(),
+        ),
+      ),
+    ),
+  if (user?.isDC ?? false)
+    IconButton(
+      icon: const Icon(Icons.add_business),
+      tooltip: 'Create Announcement',
+      onPressed: () => showOfficialPostDialog(context),
+    ),
+],
       ),
       body: ListView(
         children: [

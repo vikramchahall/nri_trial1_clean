@@ -115,6 +115,9 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
   // ===============================
   @override
   Widget build(BuildContext context) {
+    final user = context.read<AuthCubit>().currentUser;
+    final isAdmin = user?.isAdmin ?? false;
+
     return Stack(
       children: [
         Scaffold(
@@ -180,24 +183,54 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
 
                 const SizedBox(height: 20),
 
-                SwitchListTile(
-                  title: const Text(
-                    "Post for Donation?",
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                // ADMIN-ONLY DONATION TOGGLE
+                if (isAdmin)
+                  SwitchListTile(
+                    title: const Text(
+                      "Post for Donation?",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    value: _isDonationPost,
+                    onChanged: _isUploading
+                        ? null
+                        : (v) => setState(() => _isDonationPost = v),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.grey.shade600),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            "Donation posts are only available for Admin users",
+                            style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  value: _isDonationPost,
-                  onChanged:
-                      _isUploading ? null : (v) => setState(() => _isDonationPost = v),
-                ),
 
-                if (_isDonationPost)
+                if (_isDonationPost && isAdmin) ...[
+                  const SizedBox(height: 15),
                   TextField(
                     controller: _targetController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: "Target Amount (₹)",
+                      prefixIcon: Icon(Icons.currency_rupee),
                     ),
                   ),
+                ],
 
                 const SizedBox(height: 15),
 
@@ -241,5 +274,12 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _captionController.dispose();
+    _targetController.dispose();
+    super.dispose();
   }
 }

@@ -1,3 +1,8 @@
+
+// FILE 1: my_profile_page.dart (UPDATED)
+// Location: lib/features/profile/presentation/pages/my_profile_page.dart
+// ============================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -10,6 +15,7 @@ import '../../../auth/presentation/cubits/auth_cubit.dart';
 
 import 'profile_page_content.dart';
 import 'profile_edit_page.dart';
+import 'settings_page.dart'; // NEW IMPORT
 
 class MyProfilePage extends StatelessWidget {
   final String uid;
@@ -51,6 +57,20 @@ class MyProfilePage extends StatelessWidget {
             },
           ),
 
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text("App Info & Support"),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SettingsPage(),
+                ),
+              );
+            },
+          ),
+
           const Divider(),
 
           ListTile(
@@ -73,7 +93,6 @@ class MyProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    /// 🔐 PRIVATE ProfileCubit — scoped ONLY to this tab
     return BlocProvider(
       create: (_) => ProfileCubit(
         profileRepo: SupabaseProfileRepo(),
