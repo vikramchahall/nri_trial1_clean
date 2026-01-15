@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/profile_user.dart';
 import '../../../../components/my_bio_box.dart';
-
-// ✅ NEW SMART MEDIA TILE
 import '../../../../components/my_media_grid_tile.dart';
 
-// FOLLOWERS / FOLLOWING
 import 'follower_list_page.dart';
 
-// POSTS
 import '../../../crowdfunding/domain/entities/crowd_post.dart';
 import '../../../crowdfunding/presentation/pages/post_detail_page.dart';
 
-// CUBIT
 import '../cubits/profile_cubit.dart';
 
 class ProfilePageContent extends StatelessWidget {
@@ -27,21 +23,39 @@ class ProfilePageContent extends StatelessWidget {
       children: [
         const SizedBox(height: 20),
 
-        // ================= PROFILE IMAGE =================
+        // ================= PROFILE IMAGE (REAL-TIME STREAM) =================
         Center(
-          child: ClipOval(
-            child: Image.network(
-              "${user.profileImageUrl}?v=${DateTime.now().millisecondsSinceEpoch}",
-              height: 90,
-              width: 90,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                height: 90,
-                width: 90,
-                color: Colors.grey.shade200,
-                child: const Icon(Icons.person, size: 40, color: Colors.grey),
-              ),
-            ),
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: Supabase.instance.client
+                .from('profiles')
+                .stream(primaryKey: ['id'])
+                .eq('id', user.uid),
+            builder: (context, snapshot) {
+              String imageUrl = user.profileImageUrl;
+              int imageVersion = user.imageVersion;
+
+              // Get real-time data if available
+              if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                final profileData = snapshot.data!.first;
+                imageUrl = profileData['profile_image_url'] ?? '';
+                imageVersion = profileData['image_version'] ?? 0;
+              }
+
+              return ClipOval(
+                child: Image.network(
+                  imageVersion > 0 ? "$imageUrl?v=$imageVersion" : imageUrl,
+                  height: 90,
+                  width: 90,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 90,
+                    width: 90,
+                    color: Colors.grey.shade200,
+                    child: const Icon(Icons.person, size: 40, color: Colors.grey),
+                  ),
+                ),
+              );
+            },
           ),
         ),
 
@@ -91,10 +105,24 @@ class ProfilePageContent extends StatelessWidget {
 
         const SizedBox(height: 20),
 
-        // ================= BIO =================
+        // ================= BIO (REAL-TIME) =================
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 25),
-          child: MyBioBox(text: user.bio),
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: Supabase.instance.client
+                .from('profiles')
+                .stream(primaryKey: ['id'])
+                .eq('id', user.uid),
+            builder: (context, snapshot) {
+              String bio = user.bio;
+
+              if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                bio = snapshot.data!.first['bio'] ?? '';
+              }
+
+              return MyBioBox(text: bio);
+            },
+          ),
         ),
 
         const Divider(height: 40),
@@ -125,8 +153,7 @@ class ProfilePageContent extends StatelessWidget {
 
               return GridView.builder(
                 padding: const EdgeInsets.all(2),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
                   childAspectRatio: 1.0,
                   crossAxisSpacing: 2,
@@ -148,10 +175,7 @@ class ProfilePageContent extends StatelessWidget {
                         color: Colors.grey[100],
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      // ✅ SMART MEDIA TILE (IMAGE + VIDEO SUPPORT)
-                      child: MyMediaGridTile(
-                        url: post.imageUrl,
-                      ),
+                      child: MyMediaGridTile(url: post.imageUrl),
                     ),
                   );
                 },

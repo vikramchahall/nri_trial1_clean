@@ -1,8 +1,3 @@
-
-// FILE 1: my_profile_page.dart (UPDATED)
-// Location: lib/features/profile/presentation/pages/my_profile_page.dart
-// ============================================
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -15,7 +10,7 @@ import '../../../auth/presentation/cubits/auth_cubit.dart';
 
 import 'profile_page_content.dart';
 import 'profile_edit_page.dart';
-import 'settings_page.dart'; // NEW IMPORT
+import 'settings_page.dart';
 
 class MyProfilePage extends StatelessWidget {
   final String uid;
@@ -27,6 +22,7 @@ class MyProfilePage extends StatelessWidget {
     ProfileUser user,
   ) {
     final authCubit = context.read<AuthCubit>();
+    final profileCubit = context.read<ProfileCubit>(); // ✅ GET CUBIT REFERENCE
 
     showModalBottomSheet(
       context: context,
@@ -46,14 +42,22 @@ class MyProfilePage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.edit),
             title: const Text("Edit Bio & Photo"),
-            onTap: () {
+            onTap: () async {
               Navigator.pop(sheetContext);
-              Navigator.push(
+              
+              // ✅ WAIT FOR EDIT PAGE TO CLOSE, THEN REFRESH
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => ProfileEditPage(user: user),
+                  builder: (_) => BlocProvider.value(
+                    value: profileCubit, // ✅ SHARE THE SAME CUBIT
+                    child: ProfileEditPage(user: user),
+                  ),
                 ),
               );
+              
+              // ✅ REFRESH PROFILE AFTER RETURNING
+              profileCubit.fetchUserProfile(uid);
             },
           ),
 

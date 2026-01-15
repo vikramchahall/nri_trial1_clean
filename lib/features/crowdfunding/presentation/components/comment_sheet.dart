@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nri_trial1_clean/features/profile/presentation/pages/user_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/crowd_post.dart';
 import '../../domain/entities/comment.dart';
 import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
+import '../../../profile/presentation/pages/profile_page.dart';
 
 void showCommentSheet(BuildContext context, CrowdPost post) {
   final crowdCubit = context.read<CrowdCubit>();
@@ -110,22 +112,39 @@ class _CommentSheetState extends State<_CommentSheet> {
                     itemCount: comments.length,
                     itemBuilder: (context, index) {
                       final data = comments[index];
+                      final commentUserId = data['user_id'] ?? '';
 
-                      final canDelete =
-                          currentUser != null &&
-                          (currentUser.uid == data['user_id'] ||
+                      final canDelete = currentUser != null &&
+                          (currentUser.uid == commentUserId ||
                               currentUser.uid == widget.post.userId);
 
                       return ListTile(
-                        leading: const CircleAvatar(
-                          radius: 15,
-                          child: Icon(Icons.person, size: 15),
+                        leading: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => UserProfilePage(uid: commentUserId),
+                              ),
+                            );
+                          },
+                          child: _ProfileAvatar(userId: commentUserId),
                         ),
-                        title: Text(
-                          "@${data['user_name']}",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                        title: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => UserProfilePage(uid: commentUserId),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            "@${data['user_name']}",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                         subtitle: Text(data['text'] ?? ''),
@@ -136,26 +155,22 @@ class _CommentSheetState extends State<_CommentSheet> {
                                   size: 18,
                                 ),
                                 onPressed: () async {
-                                  final confirm =
-                                      await showDialog<bool>(
+                                  final confirm = await showDialog<bool>(
                                     context: context,
                                     builder: (_) => AlertDialog(
-                                      title:
-                                          const Text("Delete comment?"),
+                                      title: const Text("Delete comment?"),
                                       content: const Text(
                                         "This action cannot be undone.\nAre you sure?",
                                       ),
                                       actions: [
                                         TextButton(
                                           onPressed: () =>
-                                              Navigator.pop(
-                                                  context, false),
+                                              Navigator.pop(context, false),
                                           child: const Text("Cancel"),
                                         ),
                                         TextButton(
                                           onPressed: () =>
-                                              Navigator.pop(
-                                                  context, true),
+                                              Navigator.pop(context, true),
                                           style: TextButton.styleFrom(
                                             foregroundColor: Colors.red,
                                           ),
@@ -168,9 +183,7 @@ class _CommentSheetState extends State<_CommentSheet> {
                                   if (confirm != true) return;
 
                                   // ✅ DELETE FROM DB
-                                  context
-                                      .read<CrowdCubit>()
-                                      .deleteComment(
+                                  context.read<CrowdCubit>().deleteComment(
                                         widget.post.id,
                                         data['id'].toString(),
                                       );
@@ -193,8 +206,8 @@ class _CommentSheetState extends State<_CommentSheet> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(
                   children: [
                     Expanded(
@@ -219,6 +232,47 @@ class _CommentSheetState extends State<_CommentSheet> {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// 👤 PROFILE AVATAR (REAL-TIME UPDATES)
+class _ProfileAvatar extends StatelessWidget {
+  final String userId;
+
+  const _ProfileAvatar({required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: Supabase.instance.client
+          .from('profiles')
+          .stream(primaryKey: ['id'])
+          .eq('id', userId),
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          final user = snapshot.data!.first;
+          final String? url = user['profile_image_url'];
+          final int? version = user['image_version'];
+
+          return CircleAvatar(
+            radius: 15,
+            backgroundColor: Colors.grey[200],
+            backgroundImage: (url != null && url.isNotEmpty)
+                ? NetworkImage(
+                    version != null && version > 0 ? "$url?v=$version" : url)
+                : null,
+            child: (url == null || url.isEmpty)
+                ? const Icon(Icons.person, color: Colors.grey, size: 15)
+                : null,
+          );
+        }
+
+        return const CircleAvatar(
+          radius: 15,
+          child: Icon(Icons.person, size: 15),
         );
       },
     );

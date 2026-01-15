@@ -1,42 +1,125 @@
-import '../../../../features/auth/domain/entities/app_user.dart';
-
-class ProfileUser extends AppUser {
+class ProfileUser {
+  final String uid;
+  final String email;
+  final String username;
   final String bio;
   final String profileImageUrl;
-
-  // FOLLOW SYSTEM
+  final int imageVersion;
   final List<String> followers;
   final List<String> following;
+  final String userType;
+  final String city;
+  final String town;
+  final String block;
+  final String panchayatId;
+  final String phone;
+  final bool isAdmin;
 
   ProfileUser({
-    // ===== AppUser (SUPER) FIELDS =====
-    required super.uid,
-    required super.email,
-    required super.username,
-    required super.userType,
-    required super.isAdmin,
-    required super.isDC,
-    required super.phone,
-    required super.city,
-    required super.town,
-    required super.blockName,
-    required super.panchayatId,
-
-    // ===== Profile-specific =====
+    required this.uid,
+    required this.email,
+    required this.username,
     required this.bio,
     required this.profileImageUrl,
-
-    // ===== Follow system =====
+    this.imageVersion = 0,
     this.followers = const [],
     this.following = const [],
+    this.userType = '',
+    this.city = '',
+    this.town = '',
+    this.block = '',
+    this.panchayatId = '',
+    this.phone = '',
+    this.isAdmin = false,
   });
 
   // ===============================
-  // 🔁 PROFILE COPY (NO OVERRIDE)
+  // 📥 FROM JSON
+  // ===============================
+  factory ProfileUser.fromJson(Map<String, dynamic> json) {
+    return ProfileUser(
+      uid: json['id']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
+      bio: json['bio']?.toString() ?? '',
+      profileImageUrl: json['profile_image_url']?.toString() ?? '',
+      imageVersion: json['image_version'] ?? 0,
+      followers: json['followers'] is List
+          ? List<String>.from(json['followers'])
+          : [],
+      following: json['following'] is List
+          ? List<String>.from(json['following'])
+          : [],
+      userType: json['user_type']?.toString() ?? '',
+      city: json['city']?.toString() ?? '',
+      town: json['town']?.toString() ?? '',
+      block: json['block_name']?.toString() ?? '', // ✅ Note: block_name in DB
+      panchayatId: json['panchayat_id']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      isAdmin: json['is_admin'] == true,
+    );
+  }
+
+  // ===============================
+  // 📤 TO JSON
+  // ===============================
+  Map<String, dynamic> toJson() {
+    return {
+      'id': uid,
+      'email': email,
+      'username': username,
+      'bio': bio,
+      'profile_image_url': profileImageUrl,
+      'image_version': imageVersion,
+      'followers': followers,
+      'following': following,
+      'user_type': userType,
+      'city': city,
+      'town': town,
+      'block_name': block, // ✅ Note: block_name in DB
+      'panchayat_id': panchayatId,
+      'phone': phone,
+      'is_admin': isAdmin,
+    };
+  }
+
+  // ===============================
+  // 🔄 COPY WITH (FOR PROFILE UPDATES) - ✅ UPDATED
   // ===============================
   ProfileUser copyWithProfile({
     String? bio,
+    String? username,
+    String? phone,
+    String? city,
+    String? town,
+    String? block,
+    String? panchayatId,
     String? profileImageUrl,
+    int? imageVersion,
+  }) {
+    return ProfileUser(
+      uid: uid,
+      email: email,
+      username: username ?? this.username,
+      bio: bio ?? this.bio,
+      phone: phone ?? this.phone,
+      city: city ?? this.city,
+      town: town ?? this.town,
+      block: block ?? this.block,
+      panchayatId: panchayatId ?? this.panchayatId,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      imageVersion: imageVersion ?? this.imageVersion,
+      followers: followers,
+      following: following,
+      userType: userType,
+      isAdmin: isAdmin,
+    );
+  }
+
+  // ===============================
+  // 🔄 COPY WITH (FOR FOLLOW UPDATES)
+  // ===============================
+  ProfileUser copyWith({
     List<String>? followers,
     List<String>? following,
   }) {
@@ -44,57 +127,18 @@ class ProfileUser extends AppUser {
       uid: uid,
       email: email,
       username: username,
-      userType: userType,
-      isAdmin: isAdmin,
-      isDC: isDC,
-      phone: phone.toString(),
-      city: city,
-      town: town,
-      blockName: blockName,
-      panchayatId: panchayatId,
-      bio: bio ?? this.bio,
-      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      bio: bio,
+      profileImageUrl: profileImageUrl,
+      imageVersion: imageVersion,
       followers: followers ?? this.followers,
       following: following ?? this.following,
-    );
-  }
-
-  // ===============================
-  // 🔄 TO SUPABASE
-  // ===============================
-  @override
-  Map<String, dynamic> toJson() {
-    final map = super.toJson();
-    map.addAll({
-      'bio': bio,
-      'profile_image_url': profileImageUrl,
-      'followers': followers,
-      'following': following,
-    });
-    return map;
-  }
-
-  // ===============================
-  // 🔄 FROM SUPABASE
-  // ===============================
-  factory ProfileUser.fromJson(Map<String, dynamic> json) {
-    return ProfileUser(
-      uid: json['id'] ?? '',
-      email: json['email'] ?? '',
-      username: json['username'] ?? '',
-      userType: json['user_type'] ?? 'Supporter',
-      isAdmin: json['is_admin'] ?? false,
-      isDC: json['is_dc'] ?? false,
-      phone: json['phone']?.toString() ?? '',
-
-      city: json['city'] ?? '',
-      town: json['town'] ?? '',
-      blockName: json['block_name'] ?? '',
-      panchayatId: json['panchayat_id'] ?? '',
-      bio: json['bio'] ?? '',
-      profileImageUrl: json['profile_image_url'] ?? '',
-      followers: List<String>.from(json['followers'] ?? []),
-      following: List<String>.from(json['following'] ?? []),
+      userType: userType,
+      city: city,
+      town: town,
+      block: block,
+      panchayatId: panchayatId,
+      phone: phone,
+      isAdmin: isAdmin,
     );
   }
 }

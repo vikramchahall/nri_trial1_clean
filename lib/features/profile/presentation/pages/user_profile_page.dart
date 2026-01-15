@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 import '../cubits/profile_cubit.dart';
@@ -19,7 +20,6 @@ class UserProfilePage extends StatelessWidget {
     final authCubit = context.read<AuthCubit>();
     final myUid = authCubit.currentUser!.uid;
 
-    /// 🧠 PRIVATE Cubit — lives ONLY for this user screen
     return BlocProvider(
       create: (_) => ProfileCubit(
         profileRepo: SupabaseProfileRepo(),
@@ -44,42 +44,64 @@ class UserProfilePage extends StatelessWidget {
           }
 
           final ProfileUser user = state.profileUser;
-          final bool isFollowing = user.followers.contains(myUid);
 
-          return Scaffold(
-            appBar: AppBar(
-              title: Text("@${user.username}"),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 15),
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      backgroundColor:
-                          isFollowing ? Colors.grey[200] : Colors.green[600],
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+          // 🔥 WRAP EVERYTHING IN STREAMBUILDER TO AUTO-REFRESH
+          return StreamBuilder<List<Map<String, dynamic>>>(
+            stream: Supabase.instance.client
+                .from('profiles')
+                .stream(primaryKey: ['id'])
+                .eq('id', uid),
+            builder: (context, snapshot) {
+              // Use fresh follower data if available
+              List<String> currentFollowers = user.followers;
+              
+              if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                final freshData = snapshot.data!.first;
+                final followersRaw = freshData['followers'];
+                if (followersRaw is List) {
+                  currentFollowers = List<String>.from(followersRaw);
+                }
+              }
+
+              final bool isFollowing = currentFollowers.contains(myUid);
+
+              return Scaffold(
+                appBar: AppBar(
+                  title: Text("@${user.username}"),
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 15),
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          backgroundColor: isFollowing
+                              ? Colors.grey[200]
+                              : Colors.green[600],
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () {
+                          context.read<ProfileCubit>().toggleFollow(
+                                myUid,
+                                uid,
+                                authCubit,
+                              );
+                        },
+                        child: Text(
+                          isFollowing ? "Unfollow" : "Follow",
+                          style: TextStyle(
+                            color: isFollowing ? Colors.black : Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
-                    onPressed: () {
-                      context.read<ProfileCubit>().toggleFollow(
-                            myUid,
-                            uid,
-                           
-                          );
-                    },
-                    child: Text(
-                      isFollowing ? "Unfollow" : "Follow",
-                      style: TextStyle(
-                        color: isFollowing ? Colors.black : Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-            body: ProfilePageContent(user: user),
+                body: ProfilePageContent(user: user),
+              );
+            },
           );
         },
       ),

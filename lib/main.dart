@@ -113,9 +113,13 @@ class MyApp extends StatelessWidget {
             }
 
             // 3️⃣ EMAIL VERIFICATION
-            if (state is NeedVerification) {
-              return VerificationPage(email: state.email);
-            }
+         if (state is NeedVerification) {
+  return VerificationPage(
+    email: state.email,
+    password: state.password, // Pass the password
+  );
+}
+
 
             // 4️⃣ LOADING (API CALLS)
             if (state is AuthLoading) {

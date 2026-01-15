@@ -2,6 +2,7 @@ class CrowdPost {
   final String id;
   final String userId;
   final String userName;
+  final String? userProfileImageUrl; // ✅ PROFILE IMAGE
   final String text;
   final String imageUrl;
   final double targetAmount;
@@ -9,20 +10,21 @@ class CrowdPost {
   final DateTime timestamp;
   final List<String> likes;
 
-  // ✅ COMMENT COUNT (REQUIRED)
+  // ✅ COMMENT COUNT
   final int commentCount;
 
   const CrowdPost({
     required this.id,
     required this.userId,
     required this.userName,
+    this.userProfileImageUrl, // ✅ ADD HERE
     required this.text,
     required this.imageUrl,
     required this.targetAmount,
     required this.raisedAmount,
     required this.timestamp,
     this.likes = const [],
-    this.commentCount = 0, // ✅ DEFAULT (VERY IMPORTANT)
+    this.commentCount = 0,
   });
 
   // ===============================
@@ -31,13 +33,14 @@ class CrowdPost {
   Map<String, dynamic> toJson() => {
         'user_id': userId,
         'user_name': userName,
+        'user_profile_image_url': userProfileImageUrl, // ✅ SAVE
         'text': text,
         'image_url': imageUrl,
         'target_amount': targetAmount,
         'raised_amount': raisedAmount,
         'timestamp': timestamp.toIso8601String(),
         'likes': likes,
-        'comment_count': commentCount, // optional (future use)
+        'comment_count': commentCount,
       };
 
   // ===============================
@@ -48,13 +51,14 @@ class CrowdPost {
       id: docId,
       userId: json['user_id'] ?? '',
       userName: json['user_name'] ?? 'User',
+      userProfileImageUrl: json['user_profile_image_url'], // ✅ READ
       text: json['text'] ?? '',
       imageUrl: json['image_url'] ?? '',
       targetAmount: (json['target_amount'] ?? 0).toDouble(),
       raisedAmount: (json['raised_amount'] ?? 0).toDouble(),
       timestamp: DateTime.parse(json['timestamp']),
       likes: List<String>.from(json['likes'] ?? []),
-      commentCount: json['comment_count'] ?? 0, // ✅ SAFE DEFAULT
+      commentCount: json['comment_count'] ?? 0,
     );
   }
 
@@ -65,6 +69,7 @@ class CrowdPost {
     String? id,
     String? userId,
     String? userName,
+    String? userProfileImageUrl,
     String? text,
     String? imageUrl,
     double? targetAmount,
@@ -77,6 +82,8 @@ class CrowdPost {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       userName: userName ?? this.userName,
+      userProfileImageUrl:
+          userProfileImageUrl ?? this.userProfileImageUrl, // ✅ COPY
       text: text ?? this.text,
       imageUrl: imageUrl ?? this.imageUrl,
       targetAmount: targetAmount ?? this.targetAmount,
