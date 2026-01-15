@@ -1,11 +1,7 @@
-// ============================================
-// FILE: user_management_page.dart
-// Location: lib/features/official_updates/presentation/pages/user_management_page.dart
-// ============================================
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../auth/domain/entities/app_user.dart';
+import '../../../../services/notification_service.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -16,6 +12,8 @@ class UserManagementPage extends StatefulWidget {
 
 class _UserManagementPageState extends State<UserManagementPage> {
   final supabase = Supabase.instance.client;
+  final notificationService = NotificationService();
+  
   List<AppUser> users = [];
   List<AppUser> filteredUsers = [];
   Set<String> selectedUsers = {};
@@ -184,6 +182,230 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
+  void _showNotificationDialog() {
+    final titleController = TextEditingController();
+    final messageController = TextEditingController();
+    bool sendToAll = selectedUsers.isEmpty;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Send Push Notification'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.phone_android, color: Colors.blue[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          sendToAll
+                              ? 'Will appear as phone notification for all users'
+                              : 'Will appear as phone notification for ${selectedUsers.length} users',
+                          style: TextStyle(color: Colors.blue[900], fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (selectedUsers.isNotEmpty)
+                  SwitchListTile(
+                    title: const Text('Send to all users instead'),
+                    value: sendToAll,
+                    onChanged: (val) => setState(() => sendToAll = val),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Notification Title',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.title),
+                    hintText: 'E.g., Important Update',
+                  ),
+                  maxLength: 50,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: messageController,
+                  decoration: const InputDecoration(
+                    labelText: 'Notification Message',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.message),
+                    hintText: 'E.g., Check the new announcement',
+                  ),
+                  maxLines: 4,
+                  maxLength: 200,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                if (titleController.text.isEmpty || messageController.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please fill in all fields'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx);
+                _sendPushNotifications(
+                  titleController.text,
+                  messageController.text,
+                  sendToAll,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[700],
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.send),
+              label: const Text('Send Push'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+ Future<void> _sendPushNotifications(String title, String message, bool sendToAll) async {
+  try {
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('Sending push notifications...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    // ✅ Get current user ID
+    final currentUserId = supabase.auth.currentUser?.id;
+
+    // Determine target users
+    List<String> targetUserIds;
+    if (sendToAll) {
+      // Send to ALL users (including yourself)
+      targetUserIds = users.map((u) => u.uid).toList();
+    } else {
+      // Send to selected users + yourself
+      targetUserIds = selectedUsers.toList();
+      
+      // ✅ Add yourself if not already in the list
+      if (currentUserId != null && !targetUserIds.contains(currentUserId)) {
+        targetUserIds.add(currentUserId);
+      }
+    }
+
+    debugPrint('📤 Target users: ${targetUserIds.length}');
+
+    // 1️⃣ Save in-app notifications to database
+    final notifications = targetUserIds.map((userId) => {
+      'user_id': userId,
+      'title': title,
+      'message': message,
+      'is_read': false,
+      'created_at': DateTime.now().toIso8601String(),
+    }).toList();
+
+    await supabase.from('notifications').insert(notifications);
+
+    // 2️⃣ Get FCM tokens for target users
+    final tokensResponse = await supabase
+        .from('fcm_tokens')
+        .select('token')
+        .inFilter('user_id', targetUserIds);
+
+    final fcmTokens = (tokensResponse as List)
+        .map((row) => row['token'] as String)
+        .toList();
+
+    debugPrint('📤 Sending to ${fcmTokens.length} devices');
+
+    // 3️⃣ Send push notifications via FCM
+    final result = await notificationService.sendBulkPushNotifications(
+      deviceTokens: fcmTokens,
+      title: title,
+      body: message,
+      data: {
+        'type': 'announcement',
+        'timestamp': DateTime.now().toIso8601String(),
+      },
+    );
+
+    debugPrint('✅ Sent: ${result['sent']}, Failed: ${result['failed']}');
+
+    // Show success message
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('✓ Push sent to ${result['sent']} users (${result['failed']} failed)'),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+
+    setState(() {
+      selectedUsers.clear();
+    });
+  } catch (e) {
+    debugPrint('💥 Error: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  }
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -198,6 +420,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
         foregroundColor: Colors.green[900],
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_active),
+            onPressed: _showNotificationDialog,
+            tooltip: 'Send Notification',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadUsers,
@@ -227,6 +454,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   Widget _buildSearchAndFilter() {
     final hasPanchayatFilter = filterPanchayat != null;
+    final hasActiveFilters = hasPanchayatFilter || filterIsAdmin != null || filterIsDC != null;
     
     return Container(
       color: Colors.white,
@@ -298,16 +526,22 @@ class _UserManagementPageState extends State<UserManagementPage> {
               ],
             ),
           ),
-          if (filteredUsers.isNotEmpty && filterPanchayat != null) ...[
+          if (filteredUsers.isNotEmpty && hasActiveFilters) ...[
             const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: _selectAllFiltered,
-              icon: const Icon(Icons.check_box),
-              label: Text('Select All ${filteredUsers.length} Users'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green[700],
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 45),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _selectAllFiltered,
+                icon: const Icon(Icons.check_box, size: 20),
+                label: Text(
+                  'Select All ${filteredUsers.length} Filtered Users',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[700],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
             ),
           ],
@@ -342,28 +576,54 @@ class _UserManagementPageState extends State<UserManagementPage> {
   Widget _buildBulkActionBar() {
     return Container(
       color: Colors.green[700],
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Row(
         children: [
-          Text(
-            '${selectedUsers.length} selected',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          Flexible(
+            flex: 2,
+            child: Text(
+              '${selectedUsers.length} selected',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           const Spacer(),
           TextButton.icon(
             onPressed: () => setState(() => selectedUsers.clear()),
-            icon: const Icon(Icons.clear, color: Colors.white),
-            label: const Text('Clear', style: TextStyle(color: Colors.white)),
+            icon: const Icon(Icons.clear, color: Colors.white, size: 18),
+            label: const Text('Clear', style: TextStyle(color: Colors.white, fontSize: 12)),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 36),
+            ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
+          ElevatedButton.icon(
+            onPressed: _showNotificationDialog,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              minimumSize: const Size(0, 36),
+            ),
+            icon: const Icon(Icons.notifications, size: 16),
+            label: const Text('Notify', style: TextStyle(fontSize: 12)),
+          ),
+          const SizedBox(width: 4),
           ElevatedButton.icon(
             onPressed: _showBulkUpdateDialog,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.green[900],
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              minimumSize: const Size(0, 36),
             ),
-            icon: const Icon(Icons.edit),
-            label: const Text('Update Roles'),
+            icon: const Icon(Icons.edit, size: 16),
+            label: const Text('Roles', style: TextStyle(fontSize: 12)),
           ),
         ],
       ),
@@ -504,19 +764,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 }
 
-// ============================================
-// USER DETAIL PAGE
-// ============================================
-
 class UserDetailPage extends StatefulWidget {
   final AppUser user;
   final VoidCallback onUpdate;
 
-  const UserDetailPage({
-    super.key,
-    required this.user,
-    required this.onUpdate,
-  });
+  const UserDetailPage({super.key, required this.user, required this.onUpdate});
 
   @override
   State<UserDetailPage> createState() => _UserDetailPageState();
@@ -539,33 +791,56 @@ class _UserDetailPageState extends State<UserDetailPage> {
     setState(() => isSaving = true);
     
     try {
-      await supabase
-          .from('profiles')
-          .update({
-            'is_admin': isAdmin,
-            'is_dc': isDC,
-          })
-          .eq('id', widget.user.uid);
+      await supabase.from('profiles').update({
+        'is_admin': isAdmin,
+        'is_dc': isDC,
+      }).eq('id', widget.user.uid);
       
       widget.onUpdate();
       
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('User updated successfully'),
-            backgroundColor: Colors.green,
-          ),
+          const SnackBar(content: Text('User updated successfully'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       setState(() => isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating user: $e'),
-            backgroundColor: Colors.red,
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteUser() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete User'),
+        content: const Text('This action CANNOT be undone!'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await supabase.from('profiles').delete().eq('id', widget.user.uid);
+      widget.onUpdate();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -574,160 +849,28 @@ class _UserDetailPageState extends State<UserDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text('User Details'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.green[900],
-        elevation: 0,
         actions: [
-          if (isSaving)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.save),
-              onPressed: _saveChanges,
-              tooltip: 'Save Changes',
-            ),
+          IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: _deleteUser),
+          IconButton(icon: const Icon(Icons.save), onPressed: _saveChanges),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.green[100],
-                    child: Text(
-                      widget.user.username.isNotEmpty 
-                          ? widget.user.username[0].toUpperCase() 
-                          : '?',
-                      style: TextStyle(
-                        color: Colors.green[900],
-                        fontWeight: FontWeight.bold,
-                        fontSize: 36,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    widget.user.username,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    widget.user.userType,
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildSection('Contact Information', [
-              _buildInfoRow(Icons.email, 'Email', widget.user.email),
-              if (widget.user.phone.isNotEmpty)
-                _buildInfoRow(Icons.phone, 'Phone', widget.user.phone),
-            ]),
-            _buildSection('Location', [
-              if (widget.user.city.isNotEmpty)
-                _buildInfoRow(Icons.location_city, 'City', widget.user.city),
-              if (widget.user.town.isNotEmpty)
-                _buildInfoRow(Icons.location_on, 'Town', widget.user.town),
-              if (widget.user.blockName.isNotEmpty)
-                _buildInfoRow(Icons.business, 'Block', widget.user.blockName),
-              if (widget.user.panchayatId.isNotEmpty)
-                _buildInfoRow(Icons.gavel, 'Panchayat ID', widget.user.panchayatId),
-            ]),
-            _buildSection('Roles & Permissions', [
-              SwitchListTile(
-                title: const Text('Admin Access'),
-                subtitle: const Text('Can access special admin features'),
-                value: isAdmin,
-                onChanged: (val) => setState(() => isAdmin = val),
-                activeColor: Colors.blue,
-              ),
-              SwitchListTile(
-                title: const Text('DC Access'),
-                subtitle: const Text('Can manage users and create announcements'),
-                value: isDC,
-                onChanged: (val) => setState(() => isDC = val),
-                activeColor: Colors.purple,
-              ),
-            ]),
-            _buildSection('Social Stats', [
-              ListTile(
-                leading: Icon(Icons.people_outline, color: Colors.green[700]),
-                title: const Text('Following'),
-                trailing: Text(
-                  '${widget.user.following.length}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              ListTile(
-                leading: Icon(Icons.people, color: Colors.green[700]),
-                title: const Text('Followers'),
-                trailing: Text(
-                  '${widget.user.followers.length}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ]),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSection(String title, List<Widget> children) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+          SwitchListTile(
+            title: const Text('Admin Access'),
+            value: isAdmin,
+            onChanged: (val) => setState(() => isAdmin = val),
           ),
-          const Divider(height: 1),
-          ...children,
+          SwitchListTile(
+            title: const Text('DC Access'),
+            value: isDC,
+            onChanged: (val) => setState(() => isDC = val),
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.green[700]),
-      title: Text(label, style: TextStyle(color: Colors.grey[600])),
-      subtitle: Text(value, style: const TextStyle(fontSize: 16)),
     );
   }
 }
