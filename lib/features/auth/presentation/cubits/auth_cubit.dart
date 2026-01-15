@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nri_trial1_clean/features/auth/domain/entities/app_user.dart';
 import 'package:nri_trial1_clean/features/auth/domain/repos/auth_repo.dart';
 import 'package:nri_trial1_clean/features/auth/presentation/cubits/auth_states.dart';
+import 'package:nri_trial1_clean/core/services/fcm_service.dart'; // ⬅️ ADD THIS
 
 class AuthCubit extends Cubit<AuthState> {
   final AuthRepo authRepo;
@@ -25,6 +26,10 @@ class AuthCubit extends Cubit<AuthState> {
       final user = await authRepo.getCurrentUser();
       if (user != null) {
         _currentUser = user;
+        
+        // ⬅️ Initialize FCM if already logged in
+        await FCMService.initialize();
+        
         emit(Authenticated(user));
       } else {
         emit(Unauthenticated());
@@ -55,6 +60,9 @@ class AuthCubit extends Cubit<AuthState> {
       prefillEmail = null;
       prefillPassword = null;
 
+      // ⬅️ Initialize FCM after successful login
+      await FCMService.initialize();
+
       emit(Authenticated(user));
     } catch (e) {
       emit(AuthError(e.toString()));
@@ -64,111 +72,108 @@ class AuthCubit extends Cubit<AuthState> {
   // ==================================================
   // REGISTER → SAVE FOR AUTO-FILL (NO AUTO LOGIN)
   // ==================================================
-// ==================================================
-// REGISTER → SAVE FOR AUTO-FILL (NO AUTO LOGIN)
-// ==================================================
-Future<void> registerUser({
-  required String email,
-  required String password,
-  required String username,
-  required String phone,
-  required String userType,
-  String city = '',
-  String town = '',
-  String block = '',
-  String panchayatId = '',
-}) async {
-  try {
-    emit(AuthLoading());
+  Future<void> registerUser({
+    required String email,
+    required String password,
+    required String username,
+    required String phone,
+    required String userType,
+    String city = '',
+    String town = '',
+    String block = '',
+    String panchayatId = '',
+  }) async {
+    try {
+      emit(AuthLoading());
 
-    await authRepo.registerUser(
-      email: email,
-      password: password,
-      username: username,
-      phone: phone,
-      userType: userType,
-      city: city,
-      town: town,
-      block: block,
-      panchayatId: panchayatId,
-    );
+      await authRepo.registerUser(
+        email: email,
+        password: password,
+        username: username,
+        phone: phone,
+        userType: userType,
+        city: city,
+        town: town,
+        block: block,
+        panchayatId: panchayatId,
+      );
 
-    // 💾 SAVE FOR LOGIN AUTO-FILL
-    prefillEmail = email;
-    prefillPassword = password;
+      // 💾 SAVE FOR LOGIN AUTO-FILL
+      prefillEmail = email;
+      prefillPassword = password;
 
-    emit(NeedVerification(email: email, password: password));
+      emit(NeedVerification(email: email, password: password));
 
-  } catch (e) {
-    final errorMsg = e.toString().toLowerCase();
+    } catch (e) {
+      final errorMsg = e.toString().toLowerCase();
+      
+      // 🔹 Check if email already exists
+      if (errorMsg.contains('already registered') || 
+          errorMsg.contains('user already registered')) {
+        emit(AuthError(
+          "This email is already registered.\n"
     
-    // 🔹 Check if email already exists
-    if (errorMsg.contains('already registered') || 
-        errorMsg.contains('user already registered')) {
-      emit(AuthError(
-        "This email is already registered.\n"
-  
-        "Use 'Forgot Password' to recover your account."
-      ));
-    } else if (errorMsg.contains('email not confirmed') || 
-               errorMsg.contains('email unconfirmed')) {
-      emit(AuthError(
-        "Email already registered but not verified.\n"
-        "Check your inbox/spam for verification link."
-      ));
-    } else {
-      // Remove "Exception: " prefix if present
-      emit(AuthError(e.toString().replaceAll("Exception: ", "")));
+          "Use 'Forgot Password' to recover your account."
+        ));
+      } else if (errorMsg.contains('email not confirmed') || 
+                 errorMsg.contains('email unconfirmed')) {
+        emit(AuthError(
+          "Email already registered but not verified.\n"
+          "Check your inbox/spam for verification link."
+        ));
+      } else {
+        // Remove "Exception: " prefix if present
+        emit(AuthError(e.toString().replaceAll("Exception: ", "")));
+      }
     }
   }
-}
 
-// ==================================================
-// RESEND VERIFICATION EMAIL
-// ==================================================
-Future<void> resendVerification(String email) async {
-  try {
-    emit(AuthLoading());
-    
-    await authRepo.resendVerificationEmail(email);
-    
-    emit(NeedVerification(email: email, password: prefillPassword));
-    emit(AuthError("Verification email resent! Check your inbox/spam."));
-    
-  } catch (e) {
-    emit(AuthError("Could not resend email: ${e.toString()}"));
+  // ==================================================
+  // RESEND VERIFICATION EMAIL
+  // ==================================================
+  Future<void> resendVerification(String email) async {
+    try {
+      emit(AuthLoading());
+      
+      await authRepo.resendVerificationEmail(email);
+      
+      emit(NeedVerification(email: email, password: prefillPassword));
+      emit(AuthError("Verification email resent! Check your inbox/spam."));
+      
+    } catch (e) {
+      emit(AuthError("Could not resend email: ${e.toString()}"));
+    }
   }
-}
+
   // ==================================================
   // EMAIL VERIFICATION CHECK
   // ==================================================
   Future<void> checkStatus(String email) async {
-  try {
-    final isVerified = await authRepo.checkEmailVerified();
+    try {
+      final isVerified = await authRepo.checkEmailVerified();
 
-    if (isVerified) {
-      emit(Unauthenticated());
-      emit(AuthError("Email verified! You can now login."));
-    } else {
+      if (isVerified) {
+        emit(Unauthenticated());
+        emit(AuthError("Email verified! You can now login."));
+      } else {
+        emit(
+          NeedVerification(
+            email: email,
+            password: prefillPassword,
+          ),
+        );
+        emit(AuthError("Check Gmail! Link not clicked yet."));
+      }
+    } catch (_) {
       emit(
         NeedVerification(
           email: email,
-          password: prefillPassword, // ✅ use stored value
+          password: prefillPassword,
         ),
       );
-      emit(AuthError("Check Gmail! Link not clicked yet."));
+      emit(AuthError("System busy. Try again."));
     }
-  } catch (_) {
-    emit(
-      NeedVerification(
-        email: email,
-        password: prefillPassword, // ✅ use stored value
-      ),
-    );
-    emit(AuthError("System busy. Try again."));
   }
-}
-
 
   Future<void> checkVerificationStatus(String email) {
     return checkStatus(email);
@@ -263,32 +268,41 @@ Future<void> resendVerification(String email) async {
     emit(Unauthenticated());
   }
 
+  // ==================================================
+  // DELETE ACCOUNT
+  // ==================================================
   Future<void> deleteAccount(String password) async {
-  try {
-    emit(AuthLoading());
-    
-    await authRepo.deleteAccount(password);
-    
-    // Clear current user and emit unauthenticated state
-    _currentUser = null;
-    emit(Unauthenticated());
-  } catch (e) {
-    // Re-emit the current authenticated state if deletion fails
-    if (_currentUser != null) {
-      emit(Authenticated(_currentUser!));
-    } else {
+    try {
+      emit(AuthLoading());
+      
+      // ⬅️ Remove FCM token before deleting account
+      await FCMService.removeToken();
+      
+      await authRepo.deleteAccount(password);
+      
+      // Clear current user and emit unauthenticated state
+      _currentUser = null;
       emit(Unauthenticated());
+    } catch (e) {
+      // Re-emit the current authenticated state if deletion fails
+      if (_currentUser != null) {
+        emit(Authenticated(_currentUser!));
+      } else {
+        emit(Unauthenticated());
+      }
+      
+      // Re-throw the error so the UI can handle it
+      rethrow;
     }
-    
-    // Re-throw the error so the UI can handle it
-    rethrow;
   }
-}
 
   // ==================================================
   // LOGOUT
   // ==================================================
   Future<void> logout() async {
+    // ⬅️ Remove FCM token before logout
+    await FCMService.removeToken();
+    
     await authRepo.logout();
     _currentUser = null;
     emit(Unauthenticated());
