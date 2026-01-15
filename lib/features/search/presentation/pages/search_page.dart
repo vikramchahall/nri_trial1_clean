@@ -44,45 +44,47 @@ class _SearchViewState extends State<_SearchView> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<AuthCubit, app_auth.AuthState>(
-      builder: (context, authState) {
-        final currentUser =
-            authState is app_auth.Authenticated ? authState.user : null;
+Widget build(BuildContext context) {
+  return BlocBuilder<AuthCubit, app_auth.AuthState>(
+    builder: (context, authState) {
+      final currentUser =
+          authState is app_auth.Authenticated ? authState.user : null;
 
-        return BlocBuilder<SearchCubit, SearchState>(
-          builder: (context, state) {
-            final cubit = context.read<SearchCubit>();
+      return BlocBuilder<SearchCubit, SearchState>(
+        builder: (context, state) {
+          final cubit = context.read<SearchCubit>();
 
-            return Scaffold(
-              appBar: SearchAppBar(
-                controller: _controller,
-                isSearching: state.isSearching,
-                onChanged: cubit.onQueryChanged,
-                onClear: () {
-                  _controller.clear();
-                  cubit.clear();
-                  context.read<SearchCubit>().clear(); // clears results
-  FocusScope.of(context).unfocus();
-                },
-              ),
-              body: Stack(
-                children: [
-                  FollowingFeedGrid(
-                    followingList: currentUser?.following ?? [],
+          return Scaffold(
+            appBar: SearchAppBar(
+              controller: _controller,
+              isSearching: state.isSearching,
+              onChanged: cubit.onQueryChanged,
+              onClear: () {
+                _controller.clear();
+                cubit.clear();
+                FocusScope.of(context).unfocus();
+              },
+            ),
+            body: Stack(
+              children: [
+                // 🔥 THIS NOW REBUILDS WHEN FOLLOWING CHANGES
+                FollowingFeedGrid(
+                  followingList: currentUser?.following ?? [],
+                ),
+
+                if (state.isSearching)
+                  SearchResultsOverlay(
+                    isLoading: state.isLoading,
+                    results: state.results,
+                    onClose: cubit.clear,
                   ),
-                  if (state.isSearching)
-                    SearchResultsOverlay(
-                      isLoading: state.isLoading,
-                      results: state.results,
-                      onClose: cubit.clear,
-                    ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 }

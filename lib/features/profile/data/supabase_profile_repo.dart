@@ -8,7 +8,7 @@ class SupabaseProfileRepo implements ProfileRepo {
   final _supabase = Supabase.instance.client;
 
   // ===============================
-  // 👤 FETCH USER PROFILE + FOLLOWER / FOLLOWING COUNT (FIXED)
+  // 👤 FETCH USER PROFILE + FOLLOWER / FOLLOWING COUNT
   // ===============================
   @override
   Future<ProfileUser?> fetchUserProfile(String uid) async {
@@ -49,27 +49,67 @@ class SupabaseProfileRepo implements ProfileRepo {
   }
 
   // ===============================
-  // ✏️ UPDATE PROFILE (PHASE 2 FIX)
+  // ✏️ UPDATE PROFILE (WITH IMAGE VERSION)
   // ===============================
-  @override
-  Future<void> updateProfile(ProfileUser updatedProfile) async {
+@override
+Future<void> updateProfile(ProfileUser updatedProfile) async {
+  try {
+    await _supabase.from('profiles').update({
+      'username': updatedProfile.username.toLowerCase().trim(),
+      'bio': updatedProfile.bio,
+      'phone': updatedProfile.phone,
+      'city': updatedProfile.city,
+      'town': updatedProfile.town,
+      'block_name': updatedProfile.block,
+      'panchayat_id': updatedProfile.panchayatId,
+      'profile_image_url': updatedProfile.profileImageUrl,
+      'image_version': updatedProfile.imageVersion,
+    }).eq('id', updatedProfile.uid);
+
+    print('✅ Profile updated in database');
+    
+  } on PostgrestException catch (e) {
+    print('❌ Postgres Error: ${e.code} ${e.message}');
+    if (e.code == '23505') {
+      throw Exception('Username already taken');
+    }
+    rethrow;
+  } catch (e) {
+    print('❌ Update Error: $e');
+    rethrow;
+  }
+}
+
+
+  // ===============================
+  // 🗑️ DELETE OLD PROFILE IMAGE FROM STORAGE
+  // ===============================
+  Future<void> deleteOldProfileImage(String imageUrl) async {
     try {
-      await _supabase
-          .from('profiles')
-          .update({
-            'bio': updatedProfile.bio,
-            'profile_image_url': updatedProfile.profileImageUrl,
-            'username': updatedProfile.username,
-          })
-          // ✅ ensure only THIS user's row is updated
-          .eq('id', updatedProfile.uid);
+      // Extract filename from URL
+      // Example URL: https://xxx.supabase.co/storage/v1/object/public/profile_images/profile_123_456.jpg?v=789
+      final uri = Uri.parse(imageUrl);
+      final path = uri.path;
+      
+      // Get filename after 'profile_images/'
+      final parts = path.split('/');
+      if (parts.length >= 2) {
+        final fileName = parts.last;
+        
+        await _supabase.storage
+            .from('profile_images')
+            .remove([fileName]);
+        
+        debugPrint("✅ Deleted old image: $fileName");
+      }
     } catch (e) {
-      throw Exception("Update failed: $e");
+      debugPrint("⚠️ Failed to delete old image: $e");
+      // Don't throw - this shouldn't stop the update
     }
   }
 
   // ===============================
-  // 👥 FOLLOW / UNFOLLOW (SQL VERSION)
+  // 👥 FOLLOW / UNFOLLOW
   // ===============================
   @override
   Future<void> toggleFollow(

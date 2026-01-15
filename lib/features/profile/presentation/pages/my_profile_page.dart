@@ -10,6 +10,7 @@ import '../../../auth/presentation/cubits/auth_cubit.dart';
 
 import 'profile_page_content.dart';
 import 'profile_edit_page.dart';
+import 'settings_page.dart';
 
 class MyProfilePage extends StatelessWidget {
   final String uid;
@@ -21,6 +22,7 @@ class MyProfilePage extends StatelessWidget {
     ProfileUser user,
   ) {
     final authCubit = context.read<AuthCubit>();
+    final profileCubit = context.read<ProfileCubit>(); // ✅ GET CUBIT REFERENCE
 
     showModalBottomSheet(
       context: context,
@@ -40,12 +42,34 @@ class MyProfilePage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.edit),
             title: const Text("Edit Bio & Photo"),
+            onTap: () async {
+              Navigator.pop(sheetContext);
+              
+              // ✅ WAIT FOR EDIT PAGE TO CLOSE, THEN REFRESH
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => BlocProvider.value(
+                    value: profileCubit, // ✅ SHARE THE SAME CUBIT
+                    child: ProfileEditPage(user: user),
+                  ),
+                ),
+              );
+              
+              // ✅ REFRESH PROFILE AFTER RETURNING
+              profileCubit.fetchUserProfile(uid);
+            },
+          ),
+
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text("App Info & Support"),
             onTap: () {
               Navigator.pop(sheetContext);
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => ProfileEditPage(user: user),
+                  builder: (_) => const SettingsPage(),
                 ),
               );
             },
@@ -73,7 +97,6 @@ class MyProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    /// 🔐 PRIVATE ProfileCubit — scoped ONLY to this tab
     return BlocProvider(
       create: (_) => ProfileCubit(
         profileRepo: SupabaseProfileRepo(),

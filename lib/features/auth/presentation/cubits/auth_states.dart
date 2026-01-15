@@ -28,8 +28,14 @@ class AuthError extends AuthState {
 // After registration → user must verify email
 class NeedVerification extends AuthState {
   final String email;
-  NeedVerification(this.email);
+  final String? password; // Add this
+  
+   NeedVerification({
+    required this.email,
+    this.password, // Add this
+  });
 }
+
 
 // After forgot password → OTP sent
 class PasswordResetSent extends AuthState {

@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../components/my_text_field.dart';
 import '../cubits/profile_cubit.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
 import 'package:nri_trial1_clean/features/profile/domain/entities/profile_user.dart';
 
 class ProfileEditPage extends StatefulWidget {
@@ -17,6 +18,12 @@ class ProfileEditPage extends StatefulWidget {
 
 class _ProfileEditPageState extends State<ProfileEditPage> {
   final bioController = TextEditingController();
+  final usernameController = TextEditingController();
+  final phoneController = TextEditingController();
+  final cityController = TextEditingController();
+  final townController = TextEditingController();
+  final blockController = TextEditingController();
+  final panchayatIdController = TextEditingController();
 
   Uint8List? _selectedImageBytes;
   bool _isUploading = false;
@@ -25,6 +32,24 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   void initState() {
     super.initState();
     bioController.text = widget.user.bio;
+    usernameController.text = widget.user.username;
+    phoneController.text = widget.user.phone ?? '';
+    cityController.text = widget.user.city ?? '';
+    townController.text = widget.user.town ?? '';
+    blockController.text = widget.user.block;
+    panchayatIdController.text = widget.user.panchayatId ?? '';
+  }
+
+  @override
+  void dispose() {
+    bioController.dispose();
+    usernameController.dispose();
+    phoneController.dispose();
+    cityController.dispose();
+    townController.dispose();
+    blockController.dispose();
+    panchayatIdController.dispose();
+    super.dispose();
   }
 
   // 📸 PICK IMAGE FROM GALLERY
@@ -43,21 +68,30 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     }
   }
 
-  // 💾 SAVE PROFILE (BIO + IMAGE)
-  Future<void> save() async {
-    setState(() => _isUploading = true);
+  /// 💾 SAVE PROFILE (ALL FIELDS)
+Future<void> save() async {
+  setState(() => _isUploading = true);
 
-    await context.read<ProfileCubit>().updateProfile(
-      uid: widget.user.uid,
-      newBio: bioController.text,
-      imageBytes: _selectedImageBytes,
-    );
+  await context.read<ProfileCubit>().updateProfile(
+    uid: widget.user.uid,
+    authCubit: context.read<AuthCubit>(),
+    newBio: bioController.text,
+    newUsername: usernameController.text,
+    newPhone: phoneController.text,
+    newCity: cityController.text,
+    newTown: townController.text,
+    newBlock: blockController.text,
+    newPanchayatId: panchayatIdController.text,
+    imageBytes: _selectedImageBytes,
+  );
 
-    if (mounted) {
-      Navigator.pop(context);
-    }
+  // ✅ FETCH THE UPDATED PROFILE
+  await context.read<ProfileCubit>().fetchUserProfile(widget.user.uid);
+
+  if (mounted) {
+    Navigator.pop(context);
   }
-
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -107,7 +141,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                               )
                             : (widget.user.profileImageUrl.isNotEmpty
                                 ? Image.network(
-                                    widget.user.profileImageUrl,
+                                    widget.user.imageVersion > 0
+                                        ? "${widget.user.profileImageUrl}?v=${widget.user.imageVersion}"
+                                        : widget.user.profileImageUrl,
                                     fit: BoxFit.cover,
                                   )
                                 : const Icon(
@@ -146,6 +182,23 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
             const SizedBox(height: 40),
 
+            // ================= USERNAME =================
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Username",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 10),
+            MyTextField(
+              controller: usernameController,
+              hintText: "Username",
+              obscureText: false,
+            ),
+
+            const SizedBox(height: 20),
+
             // ================= BIO =================
             const Align(
               alignment: Alignment.centerLeft,
@@ -160,6 +213,88 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               hintText: "Tell supporters about yourself...",
               obscureText: false,
             ),
+
+            const SizedBox(height: 20),
+
+            // ================= PHONE =================
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Phone Number",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 10),
+            MyTextField(
+              controller: phoneController,
+              hintText: "Phone Number",
+              obscureText: false,
+            ),
+
+            // ================= PIND USER FIELDS =================
+            if (widget.user.userType == 'Pind') ...[
+              const SizedBox(height: 20),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Panchayat ID",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 10),
+              MyTextField(
+                controller: panchayatIdController,
+                hintText: "Panchayat ID",
+                obscureText: false,
+              ),
+
+              const SizedBox(height: 20),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Block Name",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 10),
+              MyTextField(
+                controller: blockController,
+                hintText: "Block Name",
+                obscureText: false,
+              ),
+
+              const SizedBox(height: 20),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "City",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 10),
+              MyTextField(
+                controller: cityController,
+                hintText: "City",
+                obscureText: false,
+              ),
+
+              const SizedBox(height: 20),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Town / Village",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 10),
+              MyTextField(
+                controller: townController,
+                hintText: "Town / Village",
+                obscureText: false,
+              ),
+            ],
+
+            const SizedBox(height: 40),
           ],
         ),
       ),

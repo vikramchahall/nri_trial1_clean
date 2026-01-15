@@ -1,134 +1,219 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:nri_trial1_clean/components/my_bio_box.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:nri_trial1_clean/features/profile/presentation/cubits/profile_cubit.dart';
-import 'package:nri_trial1_clean/features/profile/presentation/cubits/profile_state.dart';
+import '../../domain/entities/profile_user.dart';
+import '../../../../components/my_bio_box.dart';
+import '../../../../components/my_media_grid_tile.dart';
 
-import 'profile_edit_page.dart';
+import 'follower_list_page.dart';
 
-class ProfilePage extends StatefulWidget {
-  final String uid;
-  const ProfilePage({super.key, required this.uid});
+import '../../../crowdfunding/domain/entities/crowd_post.dart';
+import '../../../crowdfunding/presentation/pages/post_detail_page.dart';
 
-  @override
-  State<ProfilePage> createState() => _ProfilePageState();
-}
+import '../cubits/profile_cubit.dart';
 
-class _ProfilePageState extends State<ProfilePage> {
-  @override
-  void initState() {
-    super.initState();
-    context.read<ProfileCubit>().fetchUserProfile(widget.uid);
-  }
+class ProfilePageContent extends StatelessWidget {
+  final ProfileUser user;
+  const ProfilePageContent({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ProfileCubit, ProfileState>(
-      builder: (context, state) {
-        if (state is ProfileLoaded) {
-          final user = state.profileUser;
+    return Column(
+      children: [
+        const SizedBox(height: 20),
 
-          return Scaffold(
-            appBar: AppBar(
-              title: Text("@${user.username}"),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ProfileEditPage(user: user),
+        // 🔥 PROFILE IMAGE (REAL-TIME STREAM)
+        Center(
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: Supabase.instance.client
+                .from('profiles')
+                .stream(primaryKey: ['id'])
+                .eq('id', user.uid),
+            builder: (context, snapshot) {
+              String imageUrl = user.profileImageUrl;
+              int imageVersion = user.imageVersion;
+
+              // Use fresh data from stream if available
+              if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                final freshData = snapshot.data!.first;
+                imageUrl = freshData['profile_image_url'] ?? '';
+                imageVersion = freshData['image_version'] ?? 0;
+              }
+
+              return ClipOval(
+                child: imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageVersion > 0
+                            ? "$imageUrl?v=$imageVersion"
+                            : imageUrl,
+                        height: 90,
+                        width: 90,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _buildPlaceholder(),
+                      )
+                    : _buildPlaceholder(),
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 15),
+
+        // FOLLOW STATS
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FollowerListPage(
+                      uids: user.followers,
+                      title: "Followers",
                     ),
                   ),
-                ),
-              ],
+                );
+              },
+              child: _buildStatColumn(
+                user.followers.length.toString(),
+                "Followers",
+              ),
             ),
-            body: Column(
-              children: [
-                const SizedBox(height: 25),
+            const SizedBox(width: 40),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FollowerListPage(
+                      uids: user.following,
+                      title: "Following",
+                    ),
+                  ),
+                );
+              },
+              child: _buildStatColumn(
+                user.following.length.toString(),
+                "Following",
+              ),
+            ),
+          ],
+        ),
 
-                // ✅ PROFILE IMAGE (CACHE-BUSTED)
-                Center(
-                  child: ClipOval(
-                    child: Image.network(
-                      // Cache buster forces browser refresh
-                      "${user.profileImageUrl}?v=${DateTime.now().millisecondsSinceEpoch}",
-                      height: 120,
-                      width: 120,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        height: 120,
-                        width: 120,
-                        color: Colors.grey.shade300,
-                        child: const Icon(
-                          Icons.person,
-                          size: 72,
-                          color: Colors.grey,
-                        ),
+        const SizedBox(height: 20),
+
+        // 🔥 BIO (REAL-TIME STREAM)
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: Supabase.instance.client
+              .from('profiles')
+              .stream(primaryKey: ['id'])
+              .eq('id', user.uid),
+          builder: (context, snapshot) {
+            String bio = user.bio;
+
+            // Use fresh bio from stream if available
+            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              bio = snapshot.data!.first['bio'] ?? '';
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 25),
+              child: MyBioBox(text: bio),
+            );
+          },
+        ),
+
+        const Divider(height: 40),
+
+        const Text(
+          "Village Causes & History",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+
+        const SizedBox(height: 10),
+
+        // POSTS GRID
+        Expanded(
+          child: FutureBuilder<List<CrowdPost>>(
+            future: context.read<ProfileCubit>().fetchUserPosts(user.uid),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(
+                  child: Text("No causes posted yet."),
+                );
+              }
+
+              final posts = snapshot.data!;
+
+              return GridView.builder(
+                padding: const EdgeInsets.all(2),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  childAspectRatio: 1.0,
+                  crossAxisSpacing: 2,
+                  mainAxisSpacing: 2,
+                ),
+                itemCount: posts.length,
+                itemBuilder: (context, index) {
+                  final post = posts[index];
+
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PostDetailPage(post: post),
                       ),
                     ),
-                  ),
-                ),
-
-                const SizedBox(height: 25),
-
-                // ROLE BADGE
-                Text(
-                  user.isAdmin
-                      ? "VILLAGE HEAD"
-                      : "COMMUNITY SUPPORTER",
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                // ✅ LOCATION (ONLY FOR SARPANCH)
-                if (user.userType == 'Sarpanch')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                        Text(
-                          " ${user.town}, ${user.city}",
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: MyMediaGridTile(url: post.imageUrl),
                     ),
-                  ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
 
-                const SizedBox(height: 25),
+  Widget _buildPlaceholder() {
+    return Container(
+      height: 90,
+      width: 90,
+      color: Colors.grey.shade200,
+      child: const Icon(Icons.person, size: 40, color: Colors.grey),
+    );
+  }
 
-                // BIO
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 25),
-                  child: MyBioBox(text: user.bio),
-                ),
-              ],
-            ),
-          );
-        }
-
-        if (state is ProfileLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        return const Scaffold(
-          body: Center(child: Text("Profile error")),
-        );
-      },
+  Widget _buildStatColumn(String count, String label) {
+    return Column(
+      children: [
+        Text(
+          count,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+          ),
+        ),
+      ],
     );
   }
 }

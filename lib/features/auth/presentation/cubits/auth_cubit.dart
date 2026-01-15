@@ -64,61 +64,111 @@ class AuthCubit extends Cubit<AuthState> {
   // ==================================================
   // REGISTER → SAVE FOR AUTO-FILL (NO AUTO LOGIN)
   // ==================================================
-  Future<void> registerUser({
-    required String email,
-    required String password,
-    required String username,
-    required String phone, // ✅ ADD
-    required String userType,
-    String city = '',
-    String town = '',
-    String block = '',
-    String panchayatId = '',
-  }) async {
-    try {
-      emit(AuthLoading());
+// ==================================================
+// REGISTER → SAVE FOR AUTO-FILL (NO AUTO LOGIN)
+// ==================================================
+Future<void> registerUser({
+  required String email,
+  required String password,
+  required String username,
+  required String phone,
+  required String userType,
+  String city = '',
+  String town = '',
+  String block = '',
+  String panchayatId = '',
+}) async {
+  try {
+    emit(AuthLoading());
 
-      await authRepo.registerUser(
-        email: email,
-        password: password,
-        username: username,
-          phone: phone,
-        userType: userType,
-        city: city,
-        town: town,
-        block: block,
-        panchayatId: panchayatId,
-      );
+    await authRepo.registerUser(
+      email: email,
+      password: password,
+      username: username,
+      phone: phone,
+      userType: userType,
+      city: city,
+      town: town,
+      block: block,
+      panchayatId: panchayatId,
+    );
 
-      // 💾 SAVE FOR LOGIN AUTO-FILL
-      prefillEmail = email;
-      prefillPassword = password;
+    // 💾 SAVE FOR LOGIN AUTO-FILL
+    prefillEmail = email;
+    prefillPassword = password;
 
-      emit(NeedVerification(email));
-    } catch (e) {
-      emit(AuthError(e.toString()));
+    emit(NeedVerification(email: email, password: password));
+
+  } catch (e) {
+    final errorMsg = e.toString().toLowerCase();
+    
+    // 🔹 Check if email already exists
+    if (errorMsg.contains('already registered') || 
+        errorMsg.contains('user already registered')) {
+      emit(AuthError(
+        "This email is already registered.\n"
+  
+        "Use 'Forgot Password' to recover your account."
+      ));
+    } else if (errorMsg.contains('email not confirmed') || 
+               errorMsg.contains('email unconfirmed')) {
+      emit(AuthError(
+        "Email already registered but not verified.\n"
+        "Check your inbox/spam for verification link."
+      ));
+    } else {
+      // Remove "Exception: " prefix if present
+      emit(AuthError(e.toString().replaceAll("Exception: ", "")));
     }
   }
+}
 
+// ==================================================
+// RESEND VERIFICATION EMAIL
+// ==================================================
+Future<void> resendVerification(String email) async {
+  try {
+    emit(AuthLoading());
+    
+    await authRepo.resendVerificationEmail(email);
+    
+    emit(NeedVerification(email: email, password: prefillPassword));
+    emit(AuthError("Verification email resent! Check your inbox/spam."));
+    
+  } catch (e) {
+    emit(AuthError("Could not resend email: ${e.toString()}"));
+  }
+}
   // ==================================================
   // EMAIL VERIFICATION CHECK
   // ==================================================
   Future<void> checkStatus(String email) async {
-    try {
-      final isVerified = await authRepo.checkEmailVerified();
+  try {
+    final isVerified = await authRepo.checkEmailVerified();
 
-      if (isVerified) {
-        emit(Unauthenticated());
-        emit(AuthError("Email verified! You can now login."));
-      } else {
-        emit(NeedVerification(email));
-        emit(AuthError("Check Gmail! Link not clicked yet."));
-      }
-    } catch (_) {
-      emit(NeedVerification(email));
-      emit(AuthError("System busy. Try again."));
+    if (isVerified) {
+      emit(Unauthenticated());
+      emit(AuthError("Email verified! You can now login."));
+    } else {
+      emit(
+        NeedVerification(
+          email: email,
+          password: prefillPassword, // ✅ use stored value
+        ),
+      );
+      emit(AuthError("Check Gmail! Link not clicked yet."));
     }
+  } catch (_) {
+    emit(
+      NeedVerification(
+        email: email,
+        password: prefillPassword, // ✅ use stored value
+      ),
+    );
+    emit(AuthError("System busy. Try again."));
   }
+}
+
 
   Future<void> checkVerificationStatus(String email) {
     return checkStatus(email);
@@ -212,6 +262,28 @@ class AuthCubit extends Cubit<AuthState> {
   void goToLogin() {
     emit(Unauthenticated());
   }
+
+  Future<void> deleteAccount(String password) async {
+  try {
+    emit(AuthLoading());
+    
+    await authRepo.deleteAccount(password);
+    
+    // Clear current user and emit unauthenticated state
+    _currentUser = null;
+    emit(Unauthenticated());
+  } catch (e) {
+    // Re-emit the current authenticated state if deletion fails
+    if (_currentUser != null) {
+      emit(Authenticated(_currentUser!));
+    } else {
+      emit(Unauthenticated());
+    }
+    
+    // Re-throw the error so the UI can handle it
+    rethrow;
+  }
+}
 
   // ==================================================
   // LOGOUT

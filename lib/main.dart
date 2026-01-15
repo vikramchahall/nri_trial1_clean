@@ -10,6 +10,8 @@ import 'features/auth/presentation/pages/auth_page.dart';
 import 'features/auth/presentation/pages/verification_page.dart';
 import 'features/auth/presentation/pages/reset_password_otp_page.dart';
 
+import 'core/config/app_env.dart';
+
 // 🔹 LANGUAGE
 import 'features/auth/presentation/cubits/language_cubit.dart';
 
@@ -30,11 +32,9 @@ import 'features/home/presentation/pages/home_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ INITIALIZE SUPABASE
   await supa.Supabase.initialize(
-    url: 'https://hjvsxridquolfrddlbpp.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqdnN4cmlkcXVvbGZyZGRsYnBwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxMDMxNTEsImV4cCI6MjA4MzY3OTE1MX0.-54QtJFfCLbDQCnEaAApSFjCHm2IkIdokV2LuroevCE',
+    url: AppEnv.supabaseUrl,
+    anonKey: AppEnv.supabaseAnonKey,
   );
 
   runApp(const MyApp());
@@ -113,9 +113,13 @@ class MyApp extends StatelessWidget {
             }
 
             // 3️⃣ EMAIL VERIFICATION
-            if (state is NeedVerification) {
-              return VerificationPage(email: state.email);
-            }
+         if (state is NeedVerification) {
+  return VerificationPage(
+    email: state.email,
+    password: state.password, // Pass the password
+  );
+}
+
 
             // 4️⃣ LOADING (API CALLS)
             if (state is AuthLoading) {
