@@ -38,7 +38,7 @@ class TermsConditionsPage extends StatelessWidget {
             _buildSection(
               title: '1. Acceptance of Terms',
               content:
-                  'By accessing and using SevaPani, you accept and agree to be bound by these Terms and Conditions.',
+                  'By accessing and using NRI Connect, you accept and agree to be bound by these Terms and Conditions.',
             ),
             _buildSection(
               title: '2. User Responsibilities',

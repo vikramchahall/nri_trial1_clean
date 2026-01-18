@@ -51,48 +51,128 @@ class AchievementDetailPage extends StatelessWidget {
     );
   }
 
-  Future<void> _deleteAchievement(BuildContext context) async {
-    try {
-      final supabase = Supabase.instance.client;
+Future<void> _deleteAchievement(BuildContext context) async {
+  final supabase = Supabase.instance.client;
 
-      // Delete image from storage if exists
-      if (achievement['image_url'] != null) {
-        final url = achievement['image_url'] as String;
-        // Extract file path from the full URL
-        final uri = Uri.parse(url);
-        final pathSegments = uri.pathSegments;
-        // Path format: /storage/v1/object/public/official_media/achievements/...
-        if (pathSegments.length > 4) {
-          final filePath = pathSegments.sublist(4).join('/');
-          await supabase.storage
-              .from('official_media')
-              .remove([filePath]);
-        }
-      }
+  try {
+    debugPrint("🔍 Deleting achievement with ID: ${achievement['id']}");
+    debugPrint("🔍 Image URL: ${achievement['image_url']}");
 
-      // Delete from database
-      await supabase.from('achievements').delete().eq('id', achievement['id']);
+    /// 🧹 Delete media from storage (same as official posts)
+    if (achievement['image_url'] != null) {
+      final uri = Uri.parse(achievement['image_url'] as String);
+      final path = uri.pathSegments
+          .skipWhile((e) => e != 'official_media')
+          .skip(1)
+          .join('/');
 
-      if (context.mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Achievement deleted successfully"),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error deleting: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      debugPrint("🖼️ Deleting image at path: $path");
+
+      await supabase.storage
+          .from('official_media')
+          .remove([path]);
+      
+      debugPrint("✅ Image deleted from storage");
+    }
+
+    /// 🗑️ Delete DB row (from achievements table)
+    debugPrint("🗑️ Deleting from achievements table...");
+    
+    await supabase
+        .from('achievements')
+        .delete()
+        .eq('id', achievement['id']);
+    
+    debugPrint("✅ Achievement deleted from database");
+
+    if (context.mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Achievement deleted successfully"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  } on PostgrestException catch (e) {
+    debugPrint("❌ PostgrestException: ${e.code} - ${e.message}");
+    debugPrint("   Details: ${e.details}");
+    debugPrint("   Hint: ${e.hint}");
+    
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Database error: ${e.message}"),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  } catch (e, stackTrace) {
+    debugPrint("❌ Error deleting achievement: $e");
+    debugPrint("Stack trace: $stackTrace");
+    
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: $e"),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
   }
+}
+/* 
+=== DEBUGGING STEPS ===
+
+1. Run the app and try to delete an achievement
+2. Check your console/logs for these messages:
+   - 🔍 Achievement data (ID, title, image URL)
+   - 🖼️ Image path being deleted
+   - 🗑️ Database deletion attempt
+   - ✅ or ❌ Success/error messages
+
+3. Common issues to check:
+
+   ISSUE: ID type mismatch
+   - Check if achievement['id'] is a String or int
+   - Your database might expect UUID, int, or bigint
+   
+   ISSUE: RLS (Row Level Security) policies
+   - Your Supabase might have RLS enabled
+   - Only DC users can delete, but RLS might not recognize them
+   
+   ISSUE: Wrong table name
+   - Verify the table is called 'achievements' (not 'official_updates')
+   
+   ISSUE: No matching row
+   - The achievement might have already been deleted
+   - Or the ID doesn't match any row
+
+4. Share the console output with me so I can help diagnose!
+
+=== ALTERNATIVE: Check your Supabase RLS policies ===
+
+Go to Supabase Dashboard > Authentication > Policies
+Check the 'achievements' table policies:
+
+DELETE policy should look like:
+USING (
+  auth.uid() IN (
+    SELECT id FROM profiles WHERE is_dc = true
+  )
+)
+
+OR if using a different field:
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() 
+    AND is_dc = true
+  )
+)
+*/
 
   @override
   Widget build(BuildContext context) {

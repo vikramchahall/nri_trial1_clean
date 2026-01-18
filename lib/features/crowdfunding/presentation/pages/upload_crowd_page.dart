@@ -1,7 +1,9 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as img;
 
 import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
@@ -18,6 +20,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
   final TextEditingController _targetController = TextEditingController();
 
   Uint8List? _selectedMediaBytes;
+  Offset _imageOffset = Offset.zero; // 🔥 Track drag position
   bool _isFileTypeVideo = false;
 
   bool _isUploading = false;
@@ -50,18 +53,70 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
       setState(() {
         _selectedMediaBytes = bytes;
         _isFileTypeVideo = isVideo;
+        _imageOffset = Offset.zero; // Reset position when new image picked
       });
     }
   }
 
   // ===============================
-  // ⬆️ UPLOAD (ZERO LAG FIX)
+  // ✂️ CROP IMAGE BASED ON USER'S DRAG POSITION
+  // ===============================
+  Future<Uint8List?> _cropImageToSquare(Uint8List imageBytes, Offset offset) async {
+    try {
+      // Decode image
+      final img.Image? originalImage = img.decodeImage(imageBytes);
+      if (originalImage == null) return imageBytes;
+
+      // Get the smaller dimension to make a square
+      final size = originalImage.width < originalImage.height 
+          ? originalImage.width 
+          : originalImage.height;
+
+      // Calculate crop position based on drag offset
+      // Invert the offset since dragging right means we want to see the left part
+      int x = (-offset.dx).round();
+      int y = (-offset.dy).round();
+
+      // Center the crop if no dragging occurred
+      if (offset == Offset.zero) {
+        x = (originalImage.width - size) ~/ 2;
+        y = (originalImage.height - size) ~/ 2;
+      } else {
+        // Adjust based on image vs display size ratio
+        final screenWidth = MediaQuery.of(context).size.width;
+        final scaleX = originalImage.width / screenWidth;
+        final scaleY = originalImage.height / screenWidth;
+        
+        x = (originalImage.width / 2 - offset.dx * scaleX).round() - (size ~/ 2);
+        y = (originalImage.height / 2 - offset.dy * scaleY).round() - (size ~/ 2);
+      }
+
+      // Clamp values to prevent out-of-bounds
+      x = x.clamp(0, originalImage.width - size);
+      y = y.clamp(0, originalImage.height - size);
+
+      // Crop to square
+      final croppedImage = img.copyCrop(
+        originalImage,
+        x: x,
+        y: y,
+        width: size,
+        height: size,
+      );
+
+      // Encode back to bytes
+      return Uint8List.fromList(img.encodeJpg(croppedImage, quality: 85));
+    } catch (e) {
+      debugPrint("❌ Crop error: $e");
+      return imageBytes; // Return original if crop fails
+    }
+  }
+
+  // ===============================
+  // ⬆️ UPLOAD WITH CROPPING
   // ===============================
   Future<void> _upload() async {
-    // 🔥 SHOW LOADING IMMEDIATELY
     setState(() => _isUploading = true);
-
-    // ⏳ LET UI RENDER FIRST
     await Future.delayed(const Duration(milliseconds: 10));
 
     final user = context.read<AuthCubit>().currentUser;
@@ -89,9 +144,20 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     fileName += _isFileTypeVideo ? ".mp4" : ".jpg";
 
     try {
+      Uint8List finalBytes = _selectedMediaBytes!;
+
+      // 🔥 CROP IMAGE if it's an image (not video) and user dragged it
+      if (!_isFileTypeVideo) {
+        final croppedBytes = await _cropImageToSquare(_selectedMediaBytes!, _imageOffset);
+        if (croppedBytes != null) {
+          finalBytes = croppedBytes;
+          debugPrint("✅ Image cropped to square with offset: $_imageOffset");
+        }
+      }
+
       await context.read<CrowdCubit>().createCrowdPost(
             text: _captionController.text,
-            imageBytes: _selectedMediaBytes!,
+            imageBytes: finalBytes, // 🔥 Upload cropped image
             target: targetValue,
             uId: user.uid,
             uName: user.username,
@@ -100,6 +166,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
 
       if (mounted) Navigator.pop(context);
     } catch (e) {
+      debugPrint("Upload error: $e");
       _stopLoading("Upload failed. Try again.");
     }
   }
@@ -134,27 +201,52 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                // PREVIEW
+                // ✅ DRAGGABLE PREVIEW WITH CROP INFO
                 if (_selectedMediaBytes != null)
-                  Container(
-                    height: 220,
-                    margin: const EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: _isFileTypeVideo
-                          ? const Center(
-                              child: Icon(Icons.videocam,
-                                  color: Colors.white, size: 50),
-                            )
-                          : Image.memory(
-                              _selectedMediaBytes!,
-                              fit: BoxFit.cover,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Icon(Icons.crop_square, size: 16, color: Colors.grey.shade600),
+                            const SizedBox(width: 6),
+                            Text(
+                              "Preview (Drag to adjust crop)",
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade700,
+                              ),
                             ),
-                    ),
+                          ],
+                        ),
+                      ),
+                      _isFileTypeVideo
+                          ? Container(
+                              width: double.infinity,
+                              height: MediaQuery.of(context).size.width,
+                              margin: const EdgeInsets.only(bottom: 20),
+                              decoration: const BoxDecoration(
+                                color: Colors.black,
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.videocam,
+                                    color: Colors.white, size: 50),
+                              ),
+                            )
+                          : _DraggableImagePreview(
+                              imageBytes: _selectedMediaBytes!,
+                              width: MediaQuery.of(context).size.width,
+                              initialOffset: _imageOffset,
+                              onOffsetChanged: (offset) {
+                                setState(() {
+                                  _imageOffset = offset;
+                                });
+                              },
+                            ),
+                    ],
                   ),
 
                 Row(
@@ -246,7 +338,6 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
           ),
         ),
 
-        // 🔥 FULLSCREEN LOADING OVERLAY (NO LAG)
         if (_isUploading)
           Container(
             color: Colors.black.withOpacity(0.35),
@@ -283,3 +374,173 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     super.dispose();
   }
 }
+
+// ===============================
+// 🎨 DRAGGABLE IMAGE PREVIEW
+// ===============================
+class _DraggableImagePreview extends StatefulWidget {
+  final Uint8List imageBytes;
+  final double width;
+  final Offset initialOffset;
+  final ValueChanged<Offset> onOffsetChanged;
+
+  const _DraggableImagePreview({
+    required this.imageBytes,
+    required this.width,
+    required this.initialOffset,
+    required this.onOffsetChanged,
+  });
+
+  @override
+  State<_DraggableImagePreview> createState() => _DraggableImagePreviewState();
+}
+
+class _DraggableImagePreviewState extends State<_DraggableImagePreview> {
+  late Offset _imageOffset;
+  Size? _imageSize;
+
+  @override
+  void initState() {
+    super.initState();
+    _imageOffset = widget.initialOffset;
+    _loadImageSize();
+  }
+
+  // Get actual image dimensions
+  Future<void> _loadImageSize() async {
+    final image = await decodeImageFromList(widget.imageBytes);
+    if (mounted) {
+      setState(() {
+        _imageSize = Size(image.width.toDouble(), image.height.toDouble());
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.width;
+
+    return Container(
+      width: size,
+      height: size,
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        border: Border.all(color: Colors.grey.shade400, width: 2),
+      ),
+      child: Stack(
+        children: [
+          // Image with constrained dragging
+          ClipRect(
+            child: GestureDetector(
+              onPanUpdate: (details) {
+                setState(() {
+                  Offset newOffset = _imageOffset + details.delta;
+                  
+                  // 🔥 CONSTRAIN THE OFFSET to prevent black areas
+                  if (_imageSize != null) {
+                    // Calculate max drag limits based on image aspect ratio
+                    final imageAspect = _imageSize!.width / _imageSize!.height;
+                    
+                    if (imageAspect > 1) {
+                      // Wide image - can drag horizontally
+                      final maxX = (size * (imageAspect - 1)) / 2;
+                      newOffset = Offset(
+                        newOffset.dx.clamp(-maxX, maxX),
+                        0, // No vertical drag for wide images
+                      );
+                    } else {
+                      // Tall image - can drag vertically
+                      final maxY = (size * (1 / imageAspect - 1)) / 2;
+                      newOffset = Offset(
+                        0, // No horizontal drag for tall images
+                        newOffset.dy.clamp(-maxY, maxY),
+                      );
+                    }
+                  }
+                  
+                  _imageOffset = newOffset;
+                });
+                widget.onOffsetChanged(_imageOffset);
+              },
+              child: Transform.translate(
+                offset: _imageOffset,
+                child: Image.memory(
+                  widget.imageBytes,
+                  fit: BoxFit.cover,
+                  width: size,
+                  height: size,
+                ),
+              ),
+            ),
+          ),
+
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.7),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.pan_tool,
+                    color: Colors.white.withOpacity(0.9),
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Drag to adjust crop area",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_imageOffset != Offset.zero)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _imageOffset = Offset.zero;
+                  });
+                  widget.onOffsetChanged(Offset.zero);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.refresh,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
