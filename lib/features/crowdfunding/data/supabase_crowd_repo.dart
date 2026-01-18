@@ -67,11 +67,91 @@ class SupabaseCrowdRepo implements CrowdRepo {
     }
   }
 
-  @override
-  Future<void> deletePost(String postId) async {
-    await _supabase.from('posts').delete().eq('id', postId);
-  }
 
+ @override
+Future<void> deletePost(String postId) async {
+  try {
+    debugPrint("🔍 Starting post deletion for ID: $postId");
+
+    // 1️⃣ First, fetch the post to get the image URL
+    final postData = await _supabase
+        .from('posts')
+        .select('image_url')
+        .eq('id', postId)
+        .maybeSingle();
+
+    // 2️⃣ Delete image from storage if exists
+    if (postData != null && postData['image_url'] != null) {
+      final imageUrl = postData['image_url'] as String;
+      
+      if (imageUrl.isNotEmpty) {
+        await _deletePostImage(imageUrl);
+      }
+    }
+
+    // 3️⃣ Delete comments associated with this post (if table exists)
+    try {
+      await _supabase
+          .from('comments')
+          .delete()
+          .eq('post_id', postId);
+      debugPrint("✅ Comments deleted");
+    } catch (e) {
+      debugPrint("⚠️ No comments to delete or comments table doesn't exist");
+    }
+
+    // 4️⃣ Delete donations (skip if table doesn't exist yet)
+    try {
+      await _supabase
+          .from('donations')
+          .delete()
+          .eq('post_id', postId);
+      debugPrint("✅ Donations deleted");
+    } catch (e) {
+      debugPrint("⚠️ No donations to delete or donations table doesn't exist");
+    }
+
+    // 5️⃣ Delete the post from database
+    await _supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+    debugPrint("✅ Post deleted successfully");
+
+  } catch (e) {
+    debugPrint("❌ Error deleting post: $e");
+    rethrow;
+  }
+}
+
+// Helper method to delete post image from storage
+Future<void> _deletePostImage(String imageUrl) async {
+  try {
+    final uri = Uri.parse(imageUrl);
+    
+    // Extract path after 'post_images'
+    // Example URL: https://xxx.supabase.co/storage/v1/object/public/post_images/gaganjeet/1768719502280.jpg
+    // Extracts: gaganjeet/1768719502280.jpg
+    final path = uri.pathSegments
+        .skipWhile((segment) => segment != 'post_images')
+        .skip(1)  // Skip 'post_images' itself
+        .join('/');  // Joins username/filename
+
+    debugPrint("🖼️ Deleting post image at path: $path");
+
+    if (path.isNotEmpty) {
+      await _supabase.storage
+          .from('post_images')
+          .remove([path]);
+      
+      debugPrint("✅ Post image deleted from storage");
+    }
+  } catch (e) {
+    debugPrint("⚠️ Failed to delete post image: $e");
+    // Don't throw - this shouldn't stop the post deletion
+  }
+}
   // ===============================
   // 💰 DONATION (✅ FIXED)
   // ===============================

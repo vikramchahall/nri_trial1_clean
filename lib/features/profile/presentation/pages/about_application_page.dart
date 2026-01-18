@@ -36,7 +36,7 @@ class AboutApplicationPage extends StatelessWidget {
             const SizedBox(height: 20),
             const Center(
               child: Text(
-                'Dasvandh',
+                'Connect NRI',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -56,7 +56,7 @@ class AboutApplicationPage extends StatelessWidget {
             _buildInfoCard(
               title: 'What is this app?',
               content:
-                  'SevaPani is a district-led community engagement and awareness platform initiated by the Jalandhar district administration team. It serves as a digital bridge between the district administration and the public.',
+                  'NRI Connect is a district-led community engagement and awareness platform initiated by the Jalandhar district administration team. It serves as a digital bridge between the district administration and the public.',
             ),
             const SizedBox(height: 16),
             _buildInfoCard(

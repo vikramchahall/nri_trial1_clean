@@ -121,14 +121,28 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     const SizedBox(height: 60),
 
+                    // Logo
                     Image.asset(
                       'assets/logo.png',
                       height: 150,
                       fit: BoxFit.contain,
                     ),
 
+                    const SizedBox(height: 15),
+
+                    // Initiative text
+                    Text(
+                      "An initiative by District Administration Jalandhar",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+
                     const SizedBox(height: 25),
 
+                    // Welcome Text
                     Text(
                       AppTexts.get('welcome', lang),
                       textAlign: TextAlign.center,
@@ -141,6 +155,7 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 25),
 
+                    // Email Field
                     MyTextField(
                       controller: emailController,
                       hintText: AppTexts.get('email', lang),
@@ -149,19 +164,20 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 10),
 
+                    // Password Field
                     MyTextField(
                       controller: pwController,
                       hintText: AppTexts.get('password', lang),
                       obscureText: true,
                     ),
 
+                    // Forgot Password
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () {
                           if (emailController.text.isEmpty) return;
 
-                          // ✅ FIXED METHOD NAME
                           context
                               .read<AuthCubit>()
                               .forgotPassword(emailController.text);
@@ -183,6 +199,7 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 10),
 
+                    // Login Button
                     MyButton(
                       onTap: login,
                       text: AppTexts.get('login', lang),
@@ -190,6 +207,7 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 25),
 
+                    // Sign Up Link
                     GestureDetector(
                       onTap: widget.onTap,
                       child: Text(

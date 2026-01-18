@@ -354,48 +354,88 @@ class AchievementDetailPage extends StatelessWidget {
     );
   }
 
-  Future<void> _deleteAchievement(BuildContext context) async {
-    try {
-      final supabase = Supabase.instance.client;
+ Future<void> _deleteAchievement(BuildContext context) async {
+  final supabase = Supabase.instance.client;
 
-      // Delete image from storage if exists
-      if (achievement['image_url'] != null) {
-        final url = achievement['image_url'] as String;
-        // Extract file path from the full URL
-        final uri = Uri.parse(url);
-        final pathSegments = uri.pathSegments;
-        // Path format: /storage/v1/object/public/official_media/achievements/...
-        if (pathSegments.length > 4) {
-          final filePath = pathSegments.sublist(4).join('/');
+  try {
+    debugPrint("🔍 Starting achievement deletion...");
+    debugPrint("   Achievement ID: ${achievement['id']}");
+    debugPrint("   Image URL: ${achievement['image_url']}");
+
+    /// 🧹 Delete media from storage FIRST (using official posts pattern)
+    if (achievement['image_url'] != null && achievement['image_url'] != '') {
+      final imageUrl = achievement['image_url'] as String;
+      
+      try {
+        final uri = Uri.parse(imageUrl);
+        
+        // Use the SAME pattern as official posts deletion
+        final path = uri.pathSegments
+            .skipWhile((e) => e != 'official_media')
+            .skip(1)
+            .join('/');
+
+        debugPrint("🖼️ Deleting image at path: $path");
+
+        if (path.isNotEmpty) {
           await supabase.storage
               .from('official_media')
-              .remove([filePath]);
+              .remove([path]);
+          
+          debugPrint("✅ Image deleted from storage");
         }
-      }
-
-      // Delete from database
-      await supabase.from('achievements').delete().eq('id', achievement['id']);
-
-      if (context.mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Achievement deleted successfully"),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error deleting: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
+      } catch (imageError) {
+        debugPrint("⚠️ Image deletion failed: $imageError");
+        // Continue anyway - don't let image deletion stop database deletion
       }
     }
+
+    /// 🗑️ Delete from database
+    debugPrint("🗑️ Deleting from achievements table...");
+    
+    await supabase
+        .from('achievements')
+        .delete()
+        .eq('id', achievement['id']);
+    
+    debugPrint("✅ Achievement deleted from database");
+
+    if (context.mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Achievement deleted successfully"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  } on PostgrestException catch (e) {
+    debugPrint("❌ PostgrestException: ${e.code} - ${e.message}");
+    
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Database error: ${e.message}"),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  } catch (e) {
+    debugPrint("❌ Error deleting achievement: $e");
+    
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: $e"),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
