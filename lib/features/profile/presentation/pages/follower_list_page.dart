@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
+
 
 import 'user_profile_page.dart';
 
@@ -43,18 +45,44 @@ class FollowerListPage extends StatelessWidget {
                     final user = snapshot.data!;
                     final imageUrl =
                         user['profile_image_url'] as String? ?? '';
+                    final isDC = user['is_dc'] == true;
+                    final isAdmin = user['is_admin'] == true;
 
                     return ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage:
-                            imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
-                        child: imageUrl.isEmpty
-                            ? const Icon(Icons.person)
-                            : null,
+                      leading: Stack(
+                        children: [
+                          CircleAvatar(
+                            backgroundImage:
+                                imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
+                            child: imageUrl.isEmpty
+                                ? const Icon(Icons.person)
+                                : null,
+                          ),
+                          if (isDC || isAdmin)
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: VerificationBadge(
+                                isDC: isDC,
+                                isAdmin: isAdmin,
+                                size: 16,
+                              ),
+                            ),
+                        ],
                       ),
-                      title: Text("@${user['username']}"),
+                      title: Row(
+                        children: [
+                          Text("@${user['username']}"),
+                          const SizedBox(width: 4),
+                          if (isDC || isAdmin)
+                            VerificationBadge(
+                              isDC: isDC,
+                              isAdmin: isAdmin,
+                              size: 14,
+                            ),
+                        ],
+                      ),
                       onTap: () {
-                        // ✅ ONLY THIS — normal push
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -62,7 +90,6 @@ class FollowerListPage extends StatelessWidget {
                                 UserProfilePage(uid: user['id']),
                           ),
                         );
-                        
                       },
                     );
                   },

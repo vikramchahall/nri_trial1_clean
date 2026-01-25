@@ -28,10 +28,14 @@ class OfficialFeed extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final updates = snapshot.data!;
-        if (updates.isEmpty) {
-          return const Center(child: Text("No official updates yet."));
-        }
+      final updates = snapshot.data!;
+if (updates.isEmpty) {
+  return Container(
+    height: 200,
+    alignment: Alignment.center,
+    child: const Text("No official updates yet."),
+  );
+        }  
 
         return ListView.builder(
           shrinkWrap: true,
