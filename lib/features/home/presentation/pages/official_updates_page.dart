@@ -17,80 +17,114 @@ class OfficialUpdatesPage extends StatelessWidget {
 
     return DefaultTabController(
       length: 2,
-      initialIndex: 0, // Start with Announcements tab (index 1)
+      initialIndex: 0,
       child: Scaffold(
         backgroundColor: Colors.grey[50],
-        appBar: AppBar(
-          title: const Text(
-            "OFFICIAL UPDATES",
-            style: TextStyle(fontWeight: FontWeight.w900),
-          ),
-          centerTitle: true,
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.green[900],
-          elevation: 0,
-          actions: [
-            if (user?.isDC ?? false)
-              IconButton(
-                icon: const Icon(Icons.people),
-                tooltip: 'User Management',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const UserManagementPage(),
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              // AppBar
+              SliverAppBar(
+                title: const Text(
+                  "OFFICIAL UPDATES",
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                centerTitle: true,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.green[900],
+                elevation: 0,
+                floating: true,
+                pinned: true,
+                actions: [
+                  if (user?.isDC ?? false)
+                    IconButton(
+                      icon: const Icon(Icons.people),
+                      tooltip: 'User Management',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const UserManagementPage(),
+                        ),
+                      ),
+                    ),
+                  if (user?.isDC ?? false)
+                    IconButton(
+                      icon: const Icon(Icons.add_business),
+                      tooltip: 'Create Announcement',
+                      onPressed: () => showOfficialPostDialog(context),
+                    ),
+                ],
+              ),
+              
+              // Collapsible UserCounter
+              SliverToBoxAdapter(
+                child: const UserCounter(),
+              ),
+              
+              // Pinned TabBar
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _StickyTabBarDelegate(
+                  TabBar(
+                    labelColor: Colors.green[900],
+                    unselectedLabelColor: Colors.grey[600],
+                    indicatorColor: Colors.green[900],
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    tabs: const [
+                      Tab(text: "Latest Announcements"),
+                      Tab(text: "Past Achievements"),
+                    ],
                   ),
                 ),
               ),
-            if (user?.isDC ?? false)
-              IconButton(
-                icon: const Icon(Icons.add_business),
-                tooltip: 'Create Announcement',
-                onPressed: () => showOfficialPostDialog(context),
-              ),
-          ],
-        ),
-        body: Column(
-          children: [
-            // UserCounter at the very top
-            const UserCounter(),
-            
-            // TabBar
-            TabBar(
-              labelColor: Colors.green[900],
-              unselectedLabelColor: Colors.grey[600],
-              indicatorColor: Colors.green[900],
-              labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-              tabs: const [
-                Tab(text: "Latest Announcements"),
-                Tab(text: "Past Achievements"),
-                
-              ],
-            ),
-            
-            // TabBarView
-            Expanded(
-              child: TabBarView(
-                children: [
-                                    // Latest Announcements Tab
-                  ListView(
-                    children: const [
-                      OfficialFeed(),
-                    ],
-                  ),
-                  // Past Achievements Tab
-                  ListView(
-                    padding: const EdgeInsets.only(top: 16),
-                    children: const [
-                      AchievementPlate(),
-                    ],
-                  ),
-
+            ];
+          },
+          body: TabBarView(
+            children: [
+              // Latest Announcements Tab
+              ListView(
+                padding: EdgeInsets.zero,
+                children: const [
+                  OfficialFeed(),
                 ],
               ),
-            ),
-          ],
+              // Past Achievements Tab
+              ListView(
+                padding: const EdgeInsets.only(top: 16),
+                children: const [
+                  AchievementPlate(),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+// Custom delegate to make TabBar sticky
+class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+
+  _StickyTabBarDelegate(this.tabBar);
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: Colors.grey[50],
+      child: tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_StickyTabBarDelegate oldDelegate) {
+    return false;
   }
 }
