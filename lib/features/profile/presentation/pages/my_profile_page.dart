@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
 
 import '../../domain/entities/profile_user.dart';
 import '../cubits/profile_cubit.dart';
@@ -124,7 +125,20 @@ class MyProfilePage extends StatelessWidget {
 
           return Scaffold(
             appBar: AppBar(
-              title: Text("@${user.username} (Me)"),
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text("@${user.username}"),
+                  if (user.isDC || user.isAdmin) ...[
+                    const SizedBox(width: 6),
+                    VerificationBadge(
+                      isDC: user.isDC,
+                      isAdmin: user.isAdmin,
+                      size: 18,
+                    ),
+                  ],
+                ],
+              ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.settings),

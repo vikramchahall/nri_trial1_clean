@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nri_trial1_clean/utlis/url_helper.dart';
+import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
+
 
 import '../../../profile/presentation/pages/user_profile_page.dart';
 
@@ -32,31 +34,59 @@ class SearchResultsOverlay extends StatelessWidget {
         itemBuilder: (context, index) {
           final user = results[index];
           final imageUrl = user['profile_image_url'];
+          final isDC = user['is_dc'] == true;
+          final isAdmin = user['is_admin'] == true;
 
           return ListTile(
-            leading: CircleAvatar(
-              backgroundImage:
-                  imageUrl != null && imageUrl.toString().isNotEmpty
-                      ? NetworkImage(
-                          UrlHelper.getRefreshUrl(imageUrl),
-                        )
+            leading: Stack(
+              children: [
+                CircleAvatar(
+                  backgroundImage:
+                      imageUrl != null && imageUrl.toString().isNotEmpty
+                          ? NetworkImage(
+                              UrlHelper.getRefreshUrl(imageUrl),
+                            )
+                          : null,
+                  child: imageUrl == null
+                      ? const Icon(Icons.person)
                       : null,
-              child: imageUrl == null
-                  ? const Icon(Icons.person)
-                  : null,
+                ),
+                if (isDC || isAdmin)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: VerificationBadge(
+                      isDC: isDC,
+                      isAdmin: isAdmin,
+                      size: 16,
+                    ),
+                  ),
+              ],
             ),
-            title: Text("@${user['username']}"),
+            title: Row(
+              children: [
+                Text("@${user['username']}"),
+                const SizedBox(width: 4),
+                if (isDC || isAdmin)
+                  VerificationBadge(
+                    isDC: isDC,
+                    isAdmin: isAdmin,
+                    size: 14,
+                  ),
+              ],
+            ),
             subtitle: Text(
-              user['is_admin'] == true
-                  ? "Village Head"
-                  : "Supporter",
+              isDC
+                  ? "Official Account"
+                  : isAdmin
+                      ? "Village Head"
+                      : "Supporter",
             ),
             onTap: () async {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      UserProfilePage(uid: user['id']),
+                  builder: (_) => UserProfilePage(uid: user['id']),
                 ),
               );
               

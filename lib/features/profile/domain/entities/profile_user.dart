@@ -14,6 +14,7 @@ class ProfileUser {
   final String panchayatId;
   final String phone;
   final bool isAdmin;
+  final bool isDC; // ✅ ADDED
 
   ProfileUser({
     required this.uid,
@@ -31,6 +32,7 @@ class ProfileUser {
     this.panchayatId = '',
     this.phone = '',
     this.isAdmin = false,
+    this.isDC = false, // ✅ ADDED
   });
 
   // ===============================
@@ -53,10 +55,11 @@ class ProfileUser {
       userType: json['user_type']?.toString() ?? '',
       city: json['city']?.toString() ?? '',
       town: json['town']?.toString() ?? '',
-      block: json['block_name']?.toString() ?? '', // ✅ Note: block_name in DB
+      block: json['block_name']?.toString() ?? '',
       panchayatId: json['panchayat_id']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
       isAdmin: json['is_admin'] == true,
+      isDC: json['is_dc'] == true, // ✅ ADDED
     );
   }
 
@@ -76,15 +79,16 @@ class ProfileUser {
       'user_type': userType,
       'city': city,
       'town': town,
-      'block_name': block, // ✅ Note: block_name in DB
+      'block_name': block,
       'panchayat_id': panchayatId,
       'phone': phone,
       'is_admin': isAdmin,
+      'is_dc': isDC, // ✅ ADDED
     };
   }
 
   // ===============================
-  // 🔄 COPY WITH (FOR PROFILE UPDATES) - ✅ UPDATED
+  // 🔄 COPY WITH (FOR PROFILE UPDATES)
   // ===============================
   ProfileUser copyWithProfile({
     String? bio,
@@ -113,6 +117,7 @@ class ProfileUser {
       following: following,
       userType: userType,
       isAdmin: isAdmin,
+      isDC: isDC, // ✅ ADDED
     );
   }
 
@@ -139,6 +144,7 @@ class ProfileUser {
       panchayatId: panchayatId,
       phone: phone,
       isAdmin: isAdmin,
+      isDC: isDC, // ✅ ADDED
     );
   }
 }

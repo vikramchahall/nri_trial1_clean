@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nri_trial1_clean/features/profile/presentation/pages/user_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
+
 
 import '../../domain/entities/crowd_post.dart';
 import '../../domain/entities/comment.dart';
 import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
-import '../../../profile/presentation/pages/profile_page.dart';
 
 void showCommentSheet(BuildContext context, CrowdPost post) {
   final crowdCubit = context.read<CrowdCubit>();
@@ -46,8 +47,6 @@ class _CommentSheet extends StatefulWidget {
 
 class _CommentSheetState extends State<_CommentSheet> {
   final TextEditingController _controller = TextEditingController();
-
-  /// 🔥 THIS is the key that forces instant UI refresh
   int _forceRefresh = 0;
 
   void _addComment() {
@@ -86,10 +85,9 @@ class _CommentSheetState extends State<_CommentSheet> {
             ),
             const Divider(height: 12),
 
-            // 🔥 COMMENTS LIST (FORCE-REFRESHED)
             Flexible(
               child: StreamBuilder<List<Map<String, dynamic>>>(
-                key: ValueKey(_forceRefresh), // ✅ CRITICAL FIX
+                key: ValueKey(_forceRefresh),
                 stream: Supabase.instance.client
                     .from('comments')
                     .stream(primaryKey: ['id'])
@@ -139,12 +137,9 @@ class _CommentSheetState extends State<_CommentSheet> {
                               ),
                             );
                           },
-                          child: Text(
-                            "@${data['user_name']}",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
+                          child: _UserNameWithBadge(
+                            userId: commentUserId,
+                            userName: data['user_name'],
                           ),
                         ),
                         subtitle: Text(data['text'] ?? ''),
@@ -182,13 +177,11 @@ class _CommentSheetState extends State<_CommentSheet> {
 
                                   if (confirm != true) return;
 
-                                  // ✅ DELETE FROM DB
                                   context.read<CrowdCubit>().deleteComment(
                                         widget.post.id,
                                         data['id'].toString(),
                                       );
 
-                                  // ✅ FORCE UI UPDATE (INSTANT DISAPPEAR)
                                   setState(() {
                                     _forceRefresh++;
                                   });
@@ -202,7 +195,6 @@ class _CommentSheetState extends State<_CommentSheet> {
               ),
             ),
 
-            // 🔥 INPUT BAR
             SafeArea(
               top: false,
               child: Padding(
@@ -238,7 +230,7 @@ class _CommentSheetState extends State<_CommentSheet> {
   }
 }
 
-/// 👤 PROFILE AVATAR (REAL-TIME UPDATES)
+/// 👤 PROFILE AVATAR WITH BADGE
 class _ProfileAvatar extends StatelessWidget {
   final String userId;
 
@@ -256,23 +248,86 @@ class _ProfileAvatar extends StatelessWidget {
           final user = snapshot.data!.first;
           final String? url = user['profile_image_url'];
           final int? version = user['image_version'];
+          final bool isDC = user['is_dc'] == true;
+          final bool isAdmin = user['is_admin'] == true;
 
-          return CircleAvatar(
-            radius: 15,
-            backgroundColor: Colors.grey[200],
-            backgroundImage: (url != null && url.isNotEmpty)
-                ? NetworkImage(
-                    version != null && version > 0 ? "$url?v=$version" : url)
-                : null,
-            child: (url == null || url.isEmpty)
-                ? const Icon(Icons.person, color: Colors.grey, size: 15)
-                : null,
+          return Stack(
+            children: [
+              CircleAvatar(
+                radius: 15,
+                backgroundColor: Colors.grey[200],
+                backgroundImage: (url != null && url.isNotEmpty)
+                    ? NetworkImage(
+                        version != null && version > 0 ? "$url?v=$version" : url)
+                    : null,
+                child: (url == null || url.isEmpty)
+                    ? const Icon(Icons.person, color: Colors.grey, size: 15)
+                    : null,
+              ),
+              if (isDC || isAdmin)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: VerificationBadge(
+                    isDC: isDC,
+                    isAdmin: isAdmin,
+                    size: 14,
+                  ),
+                ),
+            ],
           );
         }
 
         return const CircleAvatar(
           radius: 15,
           child: Icon(Icons.person, size: 15),
+        );
+      },
+    );
+  }
+}
+
+/// USERNAME WITH BADGE
+class _UserNameWithBadge extends StatelessWidget {
+  final String userId;
+  final String userName;
+
+  const _UserNameWithBadge({required this.userId, required this.userName});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: Supabase.instance.client
+          .from('profiles')
+          .stream(primaryKey: ['id'])
+          .eq('id', userId),
+      builder: (context, snapshot) {
+        final isDC = snapshot.hasData && snapshot.data!.isNotEmpty
+            ? snapshot.data!.first['is_dc'] == true
+            : false;
+        final isAdmin = snapshot.hasData && snapshot.data!.isNotEmpty
+            ? snapshot.data!.first['is_admin'] == true
+            : false;
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "@$userName",
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            if (isDC || isAdmin) ...[
+              const SizedBox(width: 4),
+              VerificationBadge(
+                isDC: isDC,
+                isAdmin: isAdmin,
+                size: 12,
+              ),
+            ],
+          ],
         );
       },
     );

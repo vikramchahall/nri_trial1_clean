@@ -3,11 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:nri_trial1_clean/features/profile/presentation/pages/user_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
 
 import '../../domain/entities/crowd_post.dart';
 import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
-import '../../../profile/presentation/pages/profile_page.dart';
 
 class CrowdPostHeader extends StatelessWidget {
   final CrowdPost post;
@@ -41,14 +41,14 @@ class CrowdPostHeader extends StatelessWidget {
           onTap: () => _openProfile(context),
           child: _ProfileAvatar(
             userId: post.userId,
-            fallbackUrl: post.userProfileImageUrl, // Pass cached data
+            fallbackUrl: post.userProfileImageUrl,
           ),
         ),
         title: GestureDetector(
           onTap: () => _openProfile(context),
           child: _UserNameDisplay(
             userId: post.userId,
-            fallbackName: post.userName, // Show immediately, update if changed
+            fallbackName: post.userName,
           ),
         ),
         subtitle: Text(
@@ -95,7 +95,7 @@ class CrowdPostHeader extends StatelessWidget {
   }
 }
 
-/// 📝 USERNAME DISPLAY (OPTIMIZED WITH FALLBACK)
+/// 📝 USERNAME DISPLAY WITH BADGE
 class _UserNameDisplay extends StatefulWidget {
   final String userId;
   final String fallbackName;
@@ -111,16 +111,18 @@ class _UserNameDisplay extends StatefulWidget {
 
 class _UserNameDisplayState extends State<_UserNameDisplay> {
   String? _currentName;
+  bool _isDC = false;
+  bool _isAdmin = false;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _currentName = widget.fallbackName;
-    _fetchLatestUsername();
+    _fetchLatestUserData();
   }
 
-  Future<void> _fetchLatestUsername() async {
+  Future<void> _fetchLatestUserData() async {
     if (_isLoading) return;
     
     setState(() => _isLoading = true);
@@ -128,19 +130,23 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
     try {
       final response = await Supabase.instance.client
           .from('profiles')
-          .select('username')
+          .select('username, is_dc, is_admin')
           .eq('id', widget.userId)
           .single();
 
       if (mounted) {
         final newName = response['username'] as String?;
-        if (newName != null && newName != _currentName) {
-          setState(() => _currentName = newName);
-        }
+        final isDC = response['is_dc'] == true;
+        final isAdmin = response['is_admin'] == true;
+        
+        setState(() {
+          if (newName != null) _currentName = newName;
+          _isDC = isDC;
+          _isAdmin = isAdmin;
+        });
       }
     } catch (e) {
-      // Silently fail and keep using fallback
-      debugPrint('Failed to fetch username: $e');
+      debugPrint('Failed to fetch user data: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -150,14 +156,30 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      _currentName ?? 'Unknown User',
-      style: const TextStyle(fontWeight: FontWeight.bold),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            _currentName ?? 'Unknown User',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (_isDC || _isAdmin) ...[
+          const SizedBox(width: 4),
+          VerificationBadge(
+            isDC: _isDC,
+            isAdmin: _isAdmin,
+            size: 14,
+          ),
+        ],
+      ],
     );
   }
 }
 
-/// 👤 PROFILE AVATAR (OPTIMIZED WITH FALLBACK)
+/// 👤 PROFILE AVATAR WITH BADGE
 class _ProfileAvatar extends StatefulWidget {
   final String userId;
   final String? fallbackUrl;
@@ -174,6 +196,8 @@ class _ProfileAvatar extends StatefulWidget {
 class _ProfileAvatarState extends State<_ProfileAvatar> {
   String? _currentUrl;
   int? _currentVersion;
+  bool _isDC = false;
+  bool _isAdmin = false;
   bool _isLoading = false;
 
   @override
@@ -191,23 +215,24 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
     try {
       final response = await Supabase.instance.client
           .from('profiles')
-          .select('profile_image_url, image_version')
+          .select('profile_image_url, image_version, is_dc, is_admin')
           .eq('id', widget.userId)
           .single();
 
       if (mounted) {
         final newUrl = response['profile_image_url'] as String?;
         final newVersion = response['image_version'] as int?;
+        final isDC = response['is_dc'] == true;
+        final isAdmin = response['is_admin'] == true;
         
-        if (newUrl != _currentUrl || newVersion != _currentVersion) {
-          setState(() {
-            _currentUrl = newUrl;
-            _currentVersion = newVersion;
-          });
-        }
+        setState(() {
+          _currentUrl = newUrl;
+          _currentVersion = newVersion;
+          _isDC = isDC;
+          _isAdmin = isAdmin;
+        });
       }
     } catch (e) {
-      // Silently fail and keep using fallback
       debugPrint('Failed to fetch avatar: $e');
     } finally {
       if (mounted) {
@@ -221,17 +246,31 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
     final url = _currentUrl;
     final version = _currentVersion;
 
-    return CircleAvatar(
-      radius: 20,
-      backgroundColor: Colors.grey[200],
-      backgroundImage: (url != null && url.isNotEmpty)
-          ? NetworkImage(
-              version != null && version > 0 ? "$url?v=$version" : url,
-            )
-          : null,
-      child: (url == null || url.isEmpty)
-          ? const Icon(Icons.person, color: Colors.grey, size: 20)
-          : null,
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.grey[200],
+          backgroundImage: (url != null && url.isNotEmpty)
+              ? NetworkImage(
+                  version != null && version > 0 ? "$url?v=$version" : url,
+                )
+              : null,
+          child: (url == null || url.isEmpty)
+              ? const Icon(Icons.person, color: Colors.grey, size: 20)
+              : null,
+        ),
+        if (_isDC || _isAdmin)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: VerificationBadge(
+              isDC: _isDC,
+              isAdmin: _isAdmin,
+              size: 16,
+            ),
+          ),
+      ],
     );
   }
 }

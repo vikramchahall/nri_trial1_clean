@@ -11,7 +11,9 @@ import 'features/auth/data/supabase_auth_repo.dart';
 import 'features/auth/presentation/cubits/auth_cubit.dart';
 import 'features/auth/presentation/cubits/auth_states.dart';
 import 'features/auth/presentation/pages/auth_page.dart';
-import 'features/auth/presentation/pages/verification_page.dart';
+import 'package:nri_trial1_clean/features/auth/presentation/pages/verification_page.dart';
+
+import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
 import 'features/auth/presentation/pages/reset_password_otp_page.dart';
 import 'core/config/app_env.dart';
 import 'features/auth/presentation/cubits/language_cubit.dart';
