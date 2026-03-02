@@ -2,7 +2,7 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
-    id "com.google.gms.google-services"   // ✅ ADD THIS   
+    id "com.google.gms.google-services"
 }
 
 def localProperties = new Properties()
@@ -21,6 +21,13 @@ if (flutterVersionCode == null) {
 def flutterVersionName = localProperties.getProperty('flutter.versionName')
 if (flutterVersionName == null) {
     flutterVersionName = '1.0'
+}
+
+// ✅ ADD THIS - Load keystore properties
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -50,11 +57,22 @@ android {
         multiDexEnabled true
     }
 
+    // ✅ ADD THIS - Signing configurations
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            // ✅ CHANGED - Use release signing config instead of debug
+            signingConfig signingConfigs.release
 
-            // 🔥 REQUIRED for Razorpay in release
+            // Required for Razorpay in release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile(

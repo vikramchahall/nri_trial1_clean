@@ -18,9 +18,10 @@ class UploadCrowdPage extends StatefulWidget {
 class _UploadCrowdPageState extends State<UploadCrowdPage> {
   final TextEditingController _captionController = TextEditingController();
   final TextEditingController _targetController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController(); // ✅ NEW
 
   Uint8List? _selectedMediaBytes;
-  Offset _imageOffset = Offset.zero; // 🔥 Track drag position
+  Offset _imageOffset = Offset.zero;
   bool _isFileTypeVideo = false;
 
   bool _isUploading = false;
@@ -53,49 +54,41 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
       setState(() {
         _selectedMediaBytes = bytes;
         _isFileTypeVideo = isVideo;
-        _imageOffset = Offset.zero; // Reset position when new image picked
+        _imageOffset = Offset.zero;
       });
     }
   }
 
   // ===============================
-  // ✂️ CROP IMAGE BASED ON USER'S DRAG POSITION
+  // ✂️ CROP IMAGE
   // ===============================
   Future<Uint8List?> _cropImageToSquare(Uint8List imageBytes, Offset offset) async {
     try {
-      // Decode image
       final img.Image? originalImage = img.decodeImage(imageBytes);
       if (originalImage == null) return imageBytes;
 
-      // Get the smaller dimension to make a square
-      final size = originalImage.width < originalImage.height 
-          ? originalImage.width 
+      final size = originalImage.width < originalImage.height
+          ? originalImage.width
           : originalImage.height;
 
-      // Calculate crop position based on drag offset
-      // Invert the offset since dragging right means we want to see the left part
       int x = (-offset.dx).round();
       int y = (-offset.dy).round();
 
-      // Center the crop if no dragging occurred
       if (offset == Offset.zero) {
         x = (originalImage.width - size) ~/ 2;
         y = (originalImage.height - size) ~/ 2;
       } else {
-        // Adjust based on image vs display size ratio
         final screenWidth = MediaQuery.of(context).size.width;
         final scaleX = originalImage.width / screenWidth;
         final scaleY = originalImage.height / screenWidth;
-        
+
         x = (originalImage.width / 2 - offset.dx * scaleX).round() - (size ~/ 2);
         y = (originalImage.height / 2 - offset.dy * scaleY).round() - (size ~/ 2);
       }
 
-      // Clamp values to prevent out-of-bounds
       x = x.clamp(0, originalImage.width - size);
       y = y.clamp(0, originalImage.height - size);
 
-      // Crop to square
       final croppedImage = img.copyCrop(
         originalImage,
         x: x,
@@ -104,16 +97,15 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
         height: size,
       );
 
-      // Encode back to bytes
       return Uint8List.fromList(img.encodeJpg(croppedImage, quality: 85));
     } catch (e) {
       debugPrint("❌ Crop error: $e");
-      return imageBytes; // Return original if crop fails
+      return imageBytes;
     }
   }
 
   // ===============================
-  // ⬆️ UPLOAD WITH CROPPING
+  // ⬆️ UPLOAD
   // ===============================
   Future<void> _upload() async {
     setState(() => _isUploading = true);
@@ -138,6 +130,18 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
         _stopLoading("Enter valid donation amount");
         return;
       }
+
+      // ✅ VALIDATE PHONE
+      final phone = _phoneController.text.trim();
+      if (phone.isEmpty) {
+        _stopLoading("Please enter your WhatsApp number");
+        return;
+      }
+      final digitsOnly = phone.replaceAll(RegExp(r'[^\d]'), '');
+      if (digitsOnly.length < 10) {
+        _stopLoading("Enter a valid phone number");
+        return;
+      }
     }
 
     String fileName = DateTime.now().millisecondsSinceEpoch.toString();
@@ -146,22 +150,21 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
     try {
       Uint8List finalBytes = _selectedMediaBytes!;
 
-      // 🔥 CROP IMAGE if it's an image (not video) and user dragged it
       if (!_isFileTypeVideo) {
         final croppedBytes = await _cropImageToSquare(_selectedMediaBytes!, _imageOffset);
         if (croppedBytes != null) {
           finalBytes = croppedBytes;
-          debugPrint("✅ Image cropped to square with offset: $_imageOffset");
         }
       }
 
       await context.read<CrowdCubit>().createCrowdPost(
             text: _captionController.text,
-            imageBytes: finalBytes, // 🔥 Upload cropped image
+            imageBytes: finalBytes,
             target: targetValue,
             uId: user.uid,
             uName: user.username,
             customFileName: fileName,
+            phoneNumber: _phoneController.text.trim(), // ✅ PASS PHONE
           );
 
       if (mounted) Navigator.pop(context);
@@ -201,7 +204,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                // ✅ DRAGGABLE PREVIEW WITH CROP INFO
+                // ✅ DRAGGABLE PREVIEW
                 if (_selectedMediaBytes != null)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,12 +231,9 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
                               width: double.infinity,
                               height: MediaQuery.of(context).size.width,
                               margin: const EdgeInsets.only(bottom: 20),
-                              decoration: const BoxDecoration(
-                                color: Colors.black,
-                              ),
+                              decoration: const BoxDecoration(color: Colors.black),
                               child: const Center(
-                                child: Icon(Icons.videocam,
-                                    color: Colors.white, size: 50),
+                                child: Icon(Icons.videocam, color: Colors.white, size: 50),
                               ),
                             )
                           : _DraggableImagePreview(
@@ -241,9 +241,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
                               width: MediaQuery.of(context).size.width,
                               initialOffset: _imageOffset,
                               onOffsetChanged: (offset) {
-                                setState(() {
-                                  _imageOffset = offset;
-                                });
+                                setState(() => _imageOffset = offset);
                               },
                             ),
                     ],
@@ -254,20 +252,14 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
                     Expanded(
                       child: GestureDetector(
                         onTap: () => _pickMedia(false),
-                        child: _pickerTile(
-                          icon: Icons.image,
-                          label: "Pick Image",
-                        ),
+                        child: _pickerTile(icon: Icons.image, label: "Pick Image"),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: GestureDetector(
                         onTap: () => _pickMedia(true),
-                        child: _pickerTile(
-                          icon: Icons.videocam,
-                          label: "Pick Video",
-                        ),
+                        child: _pickerTile(icon: Icons.videocam, label: "Pick Video"),
                       ),
                     ),
                   ],
@@ -302,10 +294,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
                         Expanded(
                           child: Text(
                             "Donation posts are only available for Admin users",
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontSize: 14,
-                            ),
+                            style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
                           ),
                         ),
                       ],
@@ -320,6 +309,20 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
                     decoration: const InputDecoration(
                       labelText: "Target Amount (₹)",
                       prefixIcon: Icon(Icons.currency_rupee),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+
+                  // ✅ NEW: WHATSAPP PHONE FIELD (only for donation posts)
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: "Your WhatsApp Number",
+                      hintText: "e.g. 9876543210",
+                      prefixIcon: Icon(Icons.phone),
+                      prefixText: "+91 ",
+                      helperText: "Donors will contact you on this number",
                     ),
                   ),
                 ],
@@ -341,9 +344,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
         if (_isUploading)
           Container(
             color: Colors.black.withOpacity(0.35),
-            child: const Center(
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 3)),
           ),
       ],
     );
@@ -371,6 +372,7 @@ class _UploadCrowdPageState extends State<UploadCrowdPage> {
   void dispose() {
     _captionController.dispose();
     _targetController.dispose();
+    _phoneController.dispose(); // ✅ DISPOSE
     super.dispose();
   }
 }
@@ -406,7 +408,6 @@ class _DraggableImagePreviewState extends State<_DraggableImagePreview> {
     _loadImageSize();
   }
 
-  // Get actual image dimensions
   Future<void> _loadImageSize() async {
     final image = await decodeImageFromList(widget.imageBytes);
     if (mounted) {
@@ -430,35 +431,24 @@ class _DraggableImagePreviewState extends State<_DraggableImagePreview> {
       ),
       child: Stack(
         children: [
-          // Image with constrained dragging
           ClipRect(
             child: GestureDetector(
               onPanUpdate: (details) {
                 setState(() {
                   Offset newOffset = _imageOffset + details.delta;
-                  
-                  // 🔥 CONSTRAIN THE OFFSET to prevent black areas
+
                   if (_imageSize != null) {
-                    // Calculate max drag limits based on image aspect ratio
                     final imageAspect = _imageSize!.width / _imageSize!.height;
-                    
+
                     if (imageAspect > 1) {
-                      // Wide image - can drag horizontally
                       final maxX = (size * (imageAspect - 1)) / 2;
-                      newOffset = Offset(
-                        newOffset.dx.clamp(-maxX, maxX),
-                        0, // No vertical drag for wide images
-                      );
+                      newOffset = Offset(newOffset.dx.clamp(-maxX, maxX), 0);
                     } else {
-                      // Tall image - can drag vertically
                       final maxY = (size * (1 / imageAspect - 1)) / 2;
-                      newOffset = Offset(
-                        0, // No horizontal drag for tall images
-                        newOffset.dy.clamp(-maxY, maxY),
-                      );
+                      newOffset = Offset(0, newOffset.dy.clamp(-maxY, maxY));
                     }
                   }
-                  
+
                   _imageOffset = newOffset;
                 });
                 widget.onOffsetChanged(_imageOffset);
@@ -485,20 +475,13 @@ class _DraggableImagePreviewState extends State<_DraggableImagePreview> {
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.7),
-                    Colors.transparent,
-                  ],
+                  colors: [Colors.black.withOpacity(0.7), Colors.transparent],
                 ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.pan_tool,
-                    color: Colors.white.withOpacity(0.9),
-                    size: 16,
-                  ),
+                  Icon(Icons.pan_tool, color: Colors.white.withOpacity(0.9), size: 16),
                   const SizedBox(width: 8),
                   Text(
                     "Drag to adjust crop area",
@@ -519,9 +502,7 @@ class _DraggableImagePreviewState extends State<_DraggableImagePreview> {
               right: 8,
               child: GestureDetector(
                 onTap: () {
-                  setState(() {
-                    _imageOffset = Offset.zero;
-                  });
+                  setState(() => _imageOffset = Offset.zero);
                   widget.onOffsetChanged(Offset.zero);
                 },
                 child: Container(
@@ -530,11 +511,7 @@ class _DraggableImagePreviewState extends State<_DraggableImagePreview> {
                     color: Colors.black.withOpacity(0.6),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.refresh,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  child: const Icon(Icons.refresh, color: Colors.white, size: 20),
                 ),
               ),
             ),
@@ -543,4 +520,3 @@ class _DraggableImagePreviewState extends State<_DraggableImagePreview> {
     );
   }
 }
-
