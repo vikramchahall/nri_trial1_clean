@@ -17,8 +17,8 @@ class WhatsAppHelper {
 
     final message =
         "Hello! My name is $name.\n"
-        "I have donated ₹$amount.\n"
-        "Purpose: $cause.";
+        "I want to donate ₹$amount.\n"
+        "additional note: $cause.";
 
   final uri = Uri.parse(
       "https://api.whatsapp.com/send?phone=$phone&text=${Uri.encodeComponent(message)}",

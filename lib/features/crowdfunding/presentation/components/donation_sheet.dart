@@ -137,7 +137,7 @@ class _DonationSheetState extends State<_DonationSheet> {
             TextField(
               controller: causeController,
               decoration: const InputDecoration(
-                labelText: "Purpose / Cause",
+                labelText: "Add Note",
               ),
             ),
 
