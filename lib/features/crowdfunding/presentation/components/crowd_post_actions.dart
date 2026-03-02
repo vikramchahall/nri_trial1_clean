@@ -112,8 +112,7 @@ class CrowdPostActions extends StatelessWidget {
 // 🔹 RIGHT SIDE (SUPPORT – TEXT + ICON ONLY)
 if (post.targetAmount > 0)
   InkWell(
-    onTap: () => showDonationSheet(context),
-    borderRadius: BorderRadius.circular(20),
+onTap: () => showDonationSheet(context, post),    borderRadius: BorderRadius.circular(20),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,

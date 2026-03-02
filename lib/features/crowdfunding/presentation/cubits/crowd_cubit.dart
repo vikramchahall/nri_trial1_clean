@@ -30,7 +30,7 @@ class CrowdCubit extends Cubit<CrowdState> {
   }
 
   // ===============================
-  // 🆕 CREATE POST (FIXED)
+  // 🆕 CREATE POST
   // ===============================
   Future<void> createCrowdPost({
     required String text,
@@ -38,13 +38,12 @@ class CrowdCubit extends Cubit<CrowdState> {
     required double target,
     required String uId,
     required String uName,
-    required String customFileName, // ✅ NEW
-     // ✅ NEW
+    required String customFileName,
+    required String phoneNumber, // ✅ NEW
   }) async {
     try {
       emit(CrowdUploading());
 
-      // ✅ SAFETY: put files inside user folder
       final safeUser = uName
           .toLowerCase()
           .replaceAll('@', '_')
@@ -52,7 +51,6 @@ class CrowdCubit extends Cubit<CrowdState> {
 
       final String filePath = "$safeUser/$customFileName";
 
-      // ✅ USE PASSED FILENAME (NO HARDCODED .JPG)
       final imageUrl = await storageRepo.uploadPostImageMobile(
         imageBytes,
         filePath,
@@ -74,6 +72,7 @@ class CrowdCubit extends Cubit<CrowdState> {
         raisedAmount: 0,
         likes: [],
         commentCount: 0,
+        phoneNumber: phoneNumber, // ✅ NEW
       );
 
       await crowdRepo.createPost(post);
@@ -82,11 +81,6 @@ class CrowdCubit extends Cubit<CrowdState> {
       emit(CrowdError(e.toString()));
     }
   }
-
-  // ===============================
-  // 💰 DONATION
-  // ===============================
-
 
   // ===============================
   // 🗑 DELETE POST
@@ -104,17 +98,17 @@ class CrowdCubit extends Cubit<CrowdState> {
   // ===============================
   // 💬 COMMENTS
   // ===============================
-Future<void> addComment(String postId, Comment comment) async {
-  try {
-    await crowdRepo.addComment(postId, comment);
-  } catch (_) {}
-}
+  Future<void> addComment(String postId, Comment comment) async {
+    try {
+      await crowdRepo.addComment(postId, comment);
+    } catch (_) {}
+  }
 
-Future<void> deleteComment(String postId, String commentId) async {
-  try {
-    await crowdRepo.deleteComment(postId, commentId);
-  } catch (_) {}
-}
+  Future<void> deleteComment(String postId, String commentId) async {
+    try {
+      await crowdRepo.deleteComment(postId, commentId);
+    } catch (_) {}
+  }
 
   // ===============================
   // ❤️ LIKE / UNLIKE (OPTIMISTIC)
@@ -148,6 +142,8 @@ Future<void> deleteComment(String postId, String commentId) async {
       targetAmount: post.targetAmount,
       raisedAmount: post.raisedAmount,
       likes: updatedLikes,
+      commentCount: post.commentCount,
+      phoneNumber: post.phoneNumber, // ✅ PRESERVED
     );
 
     posts[index] = updatedPost;

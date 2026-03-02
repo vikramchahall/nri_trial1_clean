@@ -2,22 +2,21 @@ class CrowdPost {
   final String id;
   final String userId;
   final String userName;
-  final String? userProfileImageUrl; // ✅ PROFILE IMAGE
+  final String? userProfileImageUrl;
   final String text;
   final String imageUrl;
   final double targetAmount;
   final double raisedAmount;
   final DateTime timestamp;
   final List<String> likes;
-
-  // ✅ COMMENT COUNT
   final int commentCount;
+  final String phoneNumber; // ✅ NEW
 
   const CrowdPost({
     required this.id,
     required this.userId,
     required this.userName,
-    this.userProfileImageUrl, // ✅ ADD HERE
+    this.userProfileImageUrl,
     required this.text,
     required this.imageUrl,
     required this.targetAmount,
@@ -25,15 +24,13 @@ class CrowdPost {
     required this.timestamp,
     this.likes = const [],
     this.commentCount = 0,
+    required this.phoneNumber, // ✅ NEW
   });
 
-  // ===============================
-  // 🔄 TO SUPABASE (INSERT / UPDATE)
-  // ===============================
   Map<String, dynamic> toJson() => {
         'user_id': userId,
         'user_name': userName,
-        'user_profile_image_url': userProfileImageUrl, // ✅ SAVE
+        'user_profile_image_url': userProfileImageUrl,
         'text': text,
         'image_url': imageUrl,
         'target_amount': targetAmount,
@@ -41,17 +38,15 @@ class CrowdPost {
         'timestamp': timestamp.toIso8601String(),
         'likes': likes,
         'comment_count': commentCount,
+        'phone_number': phoneNumber, // ✅ SAVE
       };
 
-  // ===============================
-  // 🔄 FROM SUPABASE (SELECT)
-  // ===============================
   factory CrowdPost.fromJson(Map<String, dynamic> json, String docId) {
     return CrowdPost(
       id: docId,
       userId: json['user_id'] ?? '',
       userName: json['user_name'] ?? 'User',
-      userProfileImageUrl: json['user_profile_image_url'], // ✅ READ
+      userProfileImageUrl: json['user_profile_image_url'],
       text: json['text'] ?? '',
       imageUrl: json['image_url'] ?? '',
       targetAmount: (json['target_amount'] ?? 0).toDouble(),
@@ -59,12 +54,10 @@ class CrowdPost {
       timestamp: DateTime.parse(json['timestamp']),
       likes: List<String>.from(json['likes'] ?? []),
       commentCount: json['comment_count'] ?? 0,
+      phoneNumber: json['phone_number'] ?? '', // ✅ READ
     );
   }
 
-  // ===============================
-  // 🔁 COPY WITH (CUBIT FRIENDLY)
-  // ===============================
   CrowdPost copyWith({
     String? id,
     String? userId,
@@ -77,13 +70,13 @@ class CrowdPost {
     DateTime? timestamp,
     List<String>? likes,
     int? commentCount,
+    String? phoneNumber, // ✅ NEW
   }) {
     return CrowdPost(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       userName: userName ?? this.userName,
-      userProfileImageUrl:
-          userProfileImageUrl ?? this.userProfileImageUrl, // ✅ COPY
+      userProfileImageUrl: userProfileImageUrl ?? this.userProfileImageUrl,
       text: text ?? this.text,
       imageUrl: imageUrl ?? this.imageUrl,
       targetAmount: targetAmount ?? this.targetAmount,
@@ -91,13 +84,10 @@ class CrowdPost {
       timestamp: timestamp ?? this.timestamp,
       likes: likes ?? this.likes,
       commentCount: commentCount ?? this.commentCount,
+      phoneNumber: phoneNumber ?? this.phoneNumber, // ✅ COPY
     );
   }
 
-  // ===============================
-  // 🧠 HELPERS (UI SAFE)
-  // ===============================
   int get likeCount => likes.length;
-
   bool isLikedBy(String uid) => likes.contains(uid);
 }

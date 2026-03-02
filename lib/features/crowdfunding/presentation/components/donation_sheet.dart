@@ -2,21 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../auth/presentation/cubits/auth_cubit.dart';
+import '../../domain/entities/crowd_post.dart';
 import 'package:nri_trial1_clean/utlis/whatsapp_helper.dart';
 
-void showDonationSheet(BuildContext context) {
+void showDonationSheet(BuildContext context, CrowdPost post) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
     ),
-    builder: (_) => const _DonationSheet(),
+    builder: (_) => _DonationSheet(post: post),
   );
 }
 
 class _DonationSheet extends StatefulWidget {
-  const _DonationSheet();
+  final CrowdPost post;
+  const _DonationSheet({required this.post});
 
   @override
   State<_DonationSheet> createState() => _DonationSheetState();
@@ -49,25 +51,21 @@ class _DonationSheetState extends State<_DonationSheet> {
               ),
             ),
 
-            const SizedBox(height: 16),
-
-            const Text(
-              "Donations can be made to:",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
             const SizedBox(height: 8),
 
-            const SelectableText("The XX"),
-            const SelectableText("XXX Society"),
-            const SelectableText("XXXX State Branch"),
-            const SizedBox(height: 6),
-            const SelectableText("BankX: State Bank of XXX"),
-            const SelectableText("A/cX No: xxxx"),
-            const SelectableText("CodeX No: xxx"),
-            const SelectableText("IFSX Code: STBP000xxx"),
-            const SelectableText("JalandharXX"),
+            // ✅ NEW SUBTITLE
+            const Center(
+              child: Text(
+                "This will open WhatsApp so you can directly contact the village and arrange your donation.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             const Divider(),
 
             TextField(
@@ -84,7 +82,7 @@ class _DonationSheetState extends State<_DonationSheet> {
             TextField(
               controller: causeController,
               decoration: const InputDecoration(
-                labelText: "Purpose / Cause",
+                labelText: "Add Note",
               ),
             ),
 
@@ -103,6 +101,7 @@ class _DonationSheetState extends State<_DonationSheet> {
                     name: currentUser?.username ?? "User",
                     amount: amountController.text,
                     cause: causeController.text,
+                    phoneNumber: widget.post.phoneNumber,
                   );
                 },
                 child: const Text("Confirm on WhatsApp"),
