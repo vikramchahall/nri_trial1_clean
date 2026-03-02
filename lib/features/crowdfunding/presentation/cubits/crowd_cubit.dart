@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nri_trial1_clean/features/storage/domain/storage_repo.dart';
 
@@ -74,6 +75,10 @@ class CrowdCubit extends Cubit<CrowdState> {
         commentCount: 0,
         phoneNumber: phoneNumber, // ✅ NEW
       );
+
+      debugPrint("📱 Phone being saved: '${post.phoneNumber}'");
+      debugPrint("📦 Full post JSON: ${post.toJson()}");
+      
 
       await crowdRepo.createPost(post);
       await fetchAllCrowds();

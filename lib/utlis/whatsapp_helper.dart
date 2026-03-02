@@ -20,8 +20,8 @@ class WhatsAppHelper {
         "I have donated ₹$amount.\n"
         "Purpose: $cause.";
 
-    final uri = Uri.parse(
-      "https://wa.me/$phone?text=${Uri.encodeComponent(message)}",
+  final uri = Uri.parse(
+      "https://api.whatsapp.com/send?phone=$phone&text=${Uri.encodeComponent(message)}",
     );
 
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {

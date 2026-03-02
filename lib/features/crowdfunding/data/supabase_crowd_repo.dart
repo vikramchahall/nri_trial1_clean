@@ -59,6 +59,7 @@ class SupabaseCrowdRepo implements CrowdRepo {
         'target_amount': post.targetAmount,
         'raised_amount': post.raisedAmount,
         'likes': [],                 // Matches the JSONB column
+        'phone_number': post.phoneNumber, // ✅ ADD THIS
       });
     } catch (e) {
       // This will print the exact reason if it fails again
