@@ -1,4 +1,4 @@
-package com.example.nri_trial1_clean
+package com.connectnri.app
 
 import io.flutter.embedding.android.FlutterActivity
 

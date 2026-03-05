@@ -20,9 +20,9 @@ class FAQPage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           _buildFAQItem(
-            question: 'What is Dasvandh?',
+            question: 'What is Connect NRI?',
             answer:
-                'Dasvandh is a district-level community engagement platform initiated by the Jalandhar district administration team to facilitate communication and awareness.',
+                'Connect NRI is a district-level community engagement platform initiated by the Jalandhar district administration team to facilitate communication and awareness.',
           ),
           _buildFAQItem(
             question: 'Is this an official government app?',
@@ -57,7 +57,7 @@ class FAQPage extends StatelessWidget {
           _buildFAQItem(
             question: 'Is my data safe?',
             answer:
-                'Yes, we take data privacy seriously. Please refer to our Privacy Policy for detailed information about how we handle your data.',
+                'Yes, we take data privacy seriously. Please refer to our Privacy Policy for detailed information about how we handle your data .',
           ),
         ],
       ),
