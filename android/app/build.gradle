@@ -31,7 +31,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace "com.example.nri_trial1_clean"
+    namespace "com.connectnri.app"
     compileSdkVersion 34
     ndkVersion flutter.ndkVersion
 
@@ -49,7 +49,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.nri_trial1_clean"
+        applicationId "com.connectnri.app"
         minSdkVersion 21
         targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
