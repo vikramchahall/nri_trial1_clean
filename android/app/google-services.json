@@ -53,7 +53,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:741098087182:android:0ea355bcb736d859c4ed5f",
         "android_client_info": {
-          "package_name": "com.example.nri_trial1_clean"
+          "package_name": "com.connectnri.app"
         }
       },
       "oauth_client": [

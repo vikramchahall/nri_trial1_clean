@@ -2,8 +2,8 @@ class AppTexts {
   static const Map<String, Map<String, String>> data = {
 'welcome': {
   'en': 'Connect NRI',
-  'hi': 'दसवंध\n(NRI कनेक्ट)',
-  'pa': 'ਦਸਵੰਧ\n(NRI ਕਨੇਕਟ)',
+  'hi': '(NRI कनेक्ट)',
+  'pa': '(NRI ਕਨੇਕਟ)',
 },
 
     'login': {
