@@ -55,43 +55,42 @@ class _VerificationPageState extends State<VerificationPage> {
     });
   }
 
-Future<void> _openGmail() async {
-  // ✅ Try Gmail app first (Android intent)
-  final Uri gmailAppUri = Uri.parse('intent://mail.google.com/#Intent;scheme=https;package=com.google.android.gm;end');
-  final Uri gmailDirectUri = Uri.parse('googlegmail://');
-  final Uri gmailWebUri = Uri.parse('https://mail.google.com');
+  Future<void> _openGmail() async {
+    final Uri gmailAppUri = Uri.parse('intent://mail.google.com/#Intent;scheme=https;package=com.google.android.gm;end');
+    final Uri gmailDirectUri = Uri.parse('googlegmail://');
+    final Uri gmailWebUri = Uri.parse('https://mail.google.com');
 
-  // Try Gmail app via package intent (Android)
-  if (await canLaunchUrl(gmailDirectUri)) {
-    await launchUrl(gmailDirectUri, mode: LaunchMode.externalApplication);
-    return;
+    if (await canLaunchUrl(gmailDirectUri)) {
+      await launchUrl(gmailDirectUri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    if (await canLaunchUrl(gmailAppUri)) {
+      await launchUrl(gmailAppUri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    await launchUrl(gmailWebUri, mode: LaunchMode.externalApplication);
   }
-
-  // Try Gmail app via intent
-  if (await canLaunchUrl(gmailAppUri)) {
-    await launchUrl(gmailAppUri, mode: LaunchMode.externalApplication);
-    return;
-  }
-
-  // Fallback to web
-  await launchUrl(gmailWebUri, mode: LaunchMode.externalApplication);
-}
 
   void _resendEmail() {
     if (!_canResend) return;
     context.read<AuthCubit>().resendVerification(widget.email);
-    _startCooldown(); // restart timer after resend
+    _startCooldown();
   }
 
   @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(25.0),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(25, 25, 25, 25 + bottomPadding),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const SizedBox(height: 60),
               const Icon(
                 Icons.mark_email_unread_outlined,
                 size: 80,
@@ -110,7 +109,7 @@ Future<void> _openGmail() async {
               ),
               const SizedBox(height: 30),
 
-              // ✅ OPEN GMAIL BUTTON
+              // OPEN GMAIL BUTTON
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -138,7 +137,7 @@ Future<void> _openGmail() async {
 
               const SizedBox(height: 12),
 
-              // ✅ I HAVE VERIFIED BUTTON
+              // I HAVE VERIFIED BUTTON
               MyButton(
                 onTap: () async {
                   if (widget.password != null) {
@@ -164,7 +163,7 @@ Future<void> _openGmail() async {
 
               const SizedBox(height: 15),
 
-              // ✅ RESEND BUTTON WITH 60s COOLDOWN
+              // RESEND BUTTON WITH 60s COOLDOWN
               _canResend
                   ? TextButton(
                       onPressed: _resendEmail,

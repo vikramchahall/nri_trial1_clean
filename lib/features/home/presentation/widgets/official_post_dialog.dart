@@ -50,10 +50,11 @@ void _showAnnouncementDialog(BuildContext context) {
     backgroundColor: Colors.transparent,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) {
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+        final bottomPadding = MediaQuery.of(context).padding.bottom;
+
         return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
+          padding: EdgeInsets.only(bottom: bottomInset),
           child: DraggableScrollableSheet(
             initialChildSize: 0.75,
             minChildSize: 0.5,
@@ -91,7 +92,7 @@ void _showAnnouncementDialog(BuildContext context) {
                   Expanded(
                     child: ListView(
                       controller: controller,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomPadding),
                       children: [
                         TextField(
                           controller: titleCtrl,
@@ -165,7 +166,6 @@ void _showAnnouncementDialog(BuildContext context) {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
@@ -269,10 +269,11 @@ void _showAchievementDialog(BuildContext context) {
     backgroundColor: Colors.transparent,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) {
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+        final bottomPadding = MediaQuery.of(context).padding.bottom;
+
         return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
+          padding: EdgeInsets.only(bottom: bottomInset),
           child: DraggableScrollableSheet(
             initialChildSize: 0.75,
             minChildSize: 0.5,
@@ -310,7 +311,7 @@ void _showAchievementDialog(BuildContext context) {
                   Expanded(
                     child: ListView(
                       controller: controller,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomPadding),
                       children: [
                         TextField(
                           controller: titleCtrl,
@@ -398,7 +399,6 @@ void _showAchievementDialog(BuildContext context) {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
