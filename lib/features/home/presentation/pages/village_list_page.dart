@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../auth/presentation/cubits/auth_cubit.dart';
 import '../../../profile/presentation/pages/user_profile_page.dart';
 
 class VillageListPage extends StatefulWidget {
@@ -16,11 +18,13 @@ class _VillageListPageState extends State<VillageListPage> {
   List<Map<String, dynamic>> _filteredVillages = [];
   bool _isLoading = true;
   String? _error;
+  String? _currentFollowedVillageId; // ✅ track which village user follows
 
   @override
   void initState() {
     super.initState();
     _fetchVillages();
+    _fetchCurrentFollow();
     _searchController.addListener(_onSearch);
   }
 
@@ -28,6 +32,28 @@ class _VillageListPageState extends State<VillageListPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchCurrentFollow() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+
+    try {
+      final response = await Supabase.instance.client
+          .from('village_follows')
+          .select('village_profile_id')
+          .eq('user_id', uid)
+          .maybeSingle();
+
+      if (mounted && response != null) {
+        setState(() {
+          _currentFollowedVillageId =
+              response['village_profile_id'] as String?;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching current follow: $e");
+    }
   }
 
   Future<void> _fetchVillages() async {
@@ -39,19 +65,16 @@ class _VillageListPageState extends State<VillageListPage> {
     try {
       final response = await Supabase.instance.client
           .from('profiles')
-          .select('id, username, panchayat_id, city, block_name, phone, profile_image_url')
+          .select(
+              'id, username, panchayat_id, city, block_name, phone, profile_image_url')
           .order('username', ascending: true);
 
       final all = List<Map<String, dynamic>>.from(response);
 
-      // ✅ Filter locally — only profiles WITH panchayat_id
       final villages = all.where((v) {
         final p = v['panchayat_id'];
         return p != null && p.toString().trim().isNotEmpty;
       }).toList();
-
-      debugPrint("✅ Total profiles: ${all.length}");
-      debugPrint("✅ Profiles with panchayat_id: ${villages.length}");
 
       if (mounted) {
         setState(() {
@@ -91,13 +114,100 @@ class _VillageListPageState extends State<VillageListPage> {
     });
   }
 
+  Future<void> _selectVillage(Map<String, dynamic> village) async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+
+    final villageId = village['id'] as String;
+    final villageName = village['username'] as String? ?? '';
+    final panchayatId = village['panchayat_id'] as String? ?? '';
+    final blockName = village['block_name'] as String? ?? '';
+    final city = village['city'] as String? ?? '';
+
+    // ✅ Already following this village
+    if (_currentFollowedVillageId == villageId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("You already follow $villageName"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // ✅ Following a different village — ask to switch
+    if (_currentFollowedVillageId != null) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Switch Village?"),
+          content: Text(
+            "You already follow a village. Do you want to switch to $villageName?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Switch"),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+
+    try {
+      // ✅ Upsert — inserts or replaces existing (UNIQUE on user_id)
+      await Supabase.instance.client.from('village_follows').upsert(
+        {
+          'user_id': uid,
+          'village_profile_id': villageId,
+          'panchayat_id': panchayatId,
+          'village_name': villageName,
+          'block_name': blockName,
+          'city': city,
+        },
+        onConflict: 'user_id',
+      );
+
+      setState(() => _currentFollowedVillageId = villageId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("✅ Now following $villageName"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context); // go back after selecting
+      }
+    } catch (e) {
+      debugPrint("❌ Error following village: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: const Text(
-          "Connect Your Village",
+          "Follow Your Village",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
@@ -143,17 +253,13 @@ class _VillageListPageState extends State<VillageListPage> {
                       Icon(Icons.error_outline,
                           size: 48, color: Colors.red.shade300),
                       const SizedBox(height: 12),
-                      Text(
-                        "Error loading villages",
-                        style: TextStyle(color: Colors.grey.shade600),
-                      ),
+                      Text("Error loading villages",
+                          style: TextStyle(color: Colors.grey.shade600)),
                       const SizedBox(height: 4),
-                      Text(
-                        _error!,
-                        style: TextStyle(
-                            color: Colors.red.shade300, fontSize: 12),
-                        textAlign: TextAlign.center,
-                      ),
+                      Text(_error!,
+                          style: TextStyle(
+                              color: Colors.red.shade300, fontSize: 12),
+                          textAlign: TextAlign.center),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _fetchVillages,
@@ -179,9 +285,7 @@ class _VillageListPageState extends State<VillageListPage> {
                                 ? "No villages match your search"
                                 : "No villages with Panchayat ID found",
                             style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 16,
-                            ),
+                                color: Colors.grey.shade600, fontSize: 16),
                             textAlign: TextAlign.center,
                           ),
                         ],
@@ -195,8 +299,14 @@ class _VillageListPageState extends State<VillageListPage> {
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: 10),
                         itemBuilder: (context, index) {
+                          final village = _filteredVillages[index];
+                          final isFollowing =
+                              _currentFollowedVillageId == village['id'];
                           return _VillageCard(
-                              village: _filteredVillages[index]);
+                            village: village,
+                            isFollowing: isFollowing,
+                            onSelect: () => _selectVillage(village),
+                          );
                         },
                       ),
                     ),
@@ -206,8 +316,14 @@ class _VillageListPageState extends State<VillageListPage> {
 
 class _VillageCard extends StatelessWidget {
   final Map<String, dynamic> village;
+  final bool isFollowing;
+  final VoidCallback onSelect;
 
-  const _VillageCard({required this.village});
+  const _VillageCard({
+    required this.village,
+    required this.isFollowing,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -219,28 +335,31 @@ class _VillageCard extends StatelessWidget {
     final phone = village['phone'] as String? ?? '';
     final uid = village['id'] as String;
 
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: isFollowing
+            ? Border.all(color: Colors.green, width: 1.5)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+      child: Row(
+        children: [
+          // Profile Image — tap opens profile
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)),
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // ✅ Profile Image
-            ClipOval(
+            child: ClipOval(
               child: imageUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: imageUrl,
@@ -252,24 +371,26 @@ class _VillageCard extends StatelessWidget {
                     )
                   : _placeholder(),
             ),
+          ),
 
-            const SizedBox(width: 14),
+          const SizedBox(width: 14),
 
-            Expanded(
+          // Details
+          Expanded(
+            child: GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name
                   Text(
                     name,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
+                        fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   const SizedBox(height: 4),
-
-                  // Panchayat ID
                   Row(
                     children: [
                       Icon(Icons.account_balance,
@@ -288,8 +409,6 @@ class _VillageCard extends StatelessWidget {
                       ),
                     ],
                   ),
-
-                  // Block + City
                   if (block.isNotEmpty || city.isNotEmpty) ...[
                     const SizedBox(height: 3),
                     Row(
@@ -304,17 +423,13 @@ class _VillageCard extends StatelessWidget {
                               if (city.isNotEmpty) city,
                             ].join(', '),
                             style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
+                                fontSize: 12, color: Colors.grey.shade600),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                   ],
-
-                  // Phone
                   if (phone.isNotEmpty) ...[
                     const SizedBox(height: 3),
                     Row(
@@ -325,9 +440,7 @@ class _VillageCard extends StatelessWidget {
                         Text(
                           phone,
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
+                              fontSize: 12, color: Colors.grey.shade600),
                         ),
                       ],
                     ),
@@ -335,11 +448,35 @@ class _VillageCard extends StatelessWidget {
                 ],
               ),
             ),
+          ),
 
-            const SizedBox(width: 8),
-            Icon(Icons.chevron_right, color: Colors.grey.shade400),
-          ],
-        ),
+          const SizedBox(width: 8),
+
+          // ✅ Follow button
+          GestureDetector(
+            onTap: onSelect,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isFollowing ? Colors.green : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isFollowing ? Colors.green : Colors.grey.shade400,
+                  width: 1.2,
+                ),
+              ),
+              child: Text(
+                isFollowing ? "Following" : "Follow",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: isFollowing ? Colors.white : Colors.black87,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

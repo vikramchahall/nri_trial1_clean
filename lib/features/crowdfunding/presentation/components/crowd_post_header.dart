@@ -40,6 +40,8 @@ class CrowdPostHeader extends StatelessWidget {
         leading: GestureDetector(
           onTap: () => _openProfile(context),
           child: _ProfileAvatar(
+            key: ValueKey('avatar_${post.userId}'),// ✅ unique key
+ 
             userId: post.userId,
             fallbackUrl: post.userProfileImageUrl,
           ),
@@ -47,6 +49,8 @@ class CrowdPostHeader extends StatelessWidget {
         title: GestureDetector(
           onTap: () => _openProfile(context),
           child: _UserNameDisplay(
+            key: ValueKey(post.userId),// ✅ unique key
+
             userId: post.userId,
             fallbackName: post.userName,
           ),
@@ -284,6 +288,7 @@ class _UserNameDisplay extends StatefulWidget {
   final String fallbackName;
 
   const _UserNameDisplay({
+    super.key,
     required this.userId,
     required this.fallbackName,
   });
@@ -360,6 +365,7 @@ class _ProfileAvatar extends StatefulWidget {
   final String? fallbackUrl;
 
   const _ProfileAvatar({
+    super.key,
     required this.userId,
     this.fallbackUrl,
   });

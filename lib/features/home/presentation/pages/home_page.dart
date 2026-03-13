@@ -22,6 +22,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   bool _fabOpen = false;
+  int _feedKey = 0; // ✅ forces CrowdFeedPage rebuild after village select
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +40,7 @@ class _HomePageState extends State<HomePage> {
         }
 
         final List<Widget> pages = [
-          const CrowdFeedPage(),
+          CrowdFeedPage(key: ValueKey(_feedKey)), // ✅ key changes on village select
           const SearchPage(),
           const OfficialUpdatesPage(),
           MyProfilePage(uid: user.uid),
@@ -51,89 +52,99 @@ class _HomePageState extends State<HomePage> {
             children: pages,
           ),
 
- floatingActionButton: (_selectedIndex == 0)
-    ? Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (_fabOpen) ...[
-            // Follow your village
-            GestureDetector(
-              onTap: () {
-                setState(() => _fabOpen = false);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const VillageListPage()));
-              },
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                width: 180, // ✅ fixed width — same for both
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.55),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Text(
-                    "CONNECT YOUR VILLAGE",
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          floatingActionButton: (_selectedIndex == 0)
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (_fabOpen) ...[
+                      // Follow your village
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _fabOpen = false);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const VillageListPage()),
+                          ).then((_) {
+                            // ✅ refresh feed when coming back
+                            setState(() => _feedKey++);
+                          });
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          width: 180,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.55),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              "Follow your village",
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
 
-            // Upload
-            GestureDetector(
-              onTap: () {
-                setState(() => _fabOpen = false);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const UploadCrowdPage()));
-              },
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                width: 180, // ✅ same width as above
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.55),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Text(
-                    "UPLOAD A POST",
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+                      // Upload a post
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _fabOpen = false);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const UploadCrowdPage()),
+                          );
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          width: 180,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.55),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              "Upload a post",
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
 
-          // ✅ + button
-          GestureDetector(
-            onTap: () => setState(() => _fabOpen = !_fabOpen),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                _fabOpen ? Icons.close : Icons.add,
-                size: 35,
-                color: Colors.green.shade700,
-              ),
-            ),
-          ),
-        ],
-      )
-    : null,
+                    // ✅ + / x button
+                    GestureDetector(
+                      onTap: () => setState(() => _fabOpen = !_fabOpen),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          _fabOpen ? Icons.close : Icons.add,
+                          size: 30,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : null,
+
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _selectedIndex,
             onTap: (index) => setState(() {
@@ -144,10 +155,14 @@ class _HomePageState extends State<HomePage> {
             unselectedItemColor: Colors.grey,
             type: BottomNavigationBarType.fixed,
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-              BottomNavigationBarItem(icon: Icon(Icons.search), label: "Follow"),
-              BottomNavigationBarItem(icon: Icon(Icons.campaign), label: "Updates"),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.home), label: "Home"),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.search), label: "Follow"),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.campaign), label: "Updates"),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.person), label: "Profile"),
             ],
           ),
         );
