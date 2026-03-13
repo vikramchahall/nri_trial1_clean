@@ -79,19 +79,29 @@ if (updates.isEmpty) {
                           ),
                         ),
                         // Only show delete button if user is DC
-                        if (canDelete)
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            color: Colors.redAccent,
-                            onPressed: () async {
-                              final confirm =
-                                  await _confirmDelete(context);
-
-                              if (confirm) {
-                                await _deleteOfficialPost(data);
-                              }
-                            },
-                          ),
+// With this:
+if (canDelete)
+  PopupMenuButton<String>(
+    icon: const Icon(Icons.more_vert),
+    onSelected: (value) async {
+      if (value == 'delete') {
+        final confirm = await _confirmDelete(context);
+        if (confirm) await _deleteOfficialPost(data);
+      }
+    },
+    itemBuilder: (_) => [
+      const PopupMenuItem(
+        value: 'delete',
+        child: Row(
+          children: [
+            Icon(Icons.delete_outline, color: Colors.red, size: 20),
+            SizedBox(width: 8),
+            Text("Delete", style: TextStyle(color: Colors.red)),
+          ],
+        ),
+      ),
+    ],
+  ),
                       ],
                     ),
 

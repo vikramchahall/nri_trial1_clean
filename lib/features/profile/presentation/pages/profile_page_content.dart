@@ -139,7 +139,7 @@ class ProfilePageContent extends StatelessWidget {
         const Divider(height: 40),
 
         const Text(
-          "Village Causes & History",
+          "History",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
 

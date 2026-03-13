@@ -29,9 +29,9 @@ class CrowdPostHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentUser = context.read<AuthCubit>().currentUser;
-
     final canDelete =
         currentUser?.uid == post.userId || (currentUser?.isDC ?? false);
+    final isOwnPost = currentUser?.uid == post.userId;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -55,12 +55,57 @@ class CrowdPostHeader extends StatelessWidget {
           DateFormat('dd MMM, yyyy').format(post.timestamp),
           style: const TextStyle(fontSize: 11),
         ),
-        trailing: canDelete
-            ? IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                onPressed: () => _confirmDelete(context),
-              )
-            : null,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ✅ FOLLOW BUTTON — only for other users' posts
+            if (currentUser != null && !isOwnPost)
+              _FollowButton(
+                currentUserId: currentUser.uid,
+                targetUserId: post.userId,
+              ),
+
+            // ✅ THREE DOTS
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'delete') _confirmDelete(context);
+                if (value == 'report') {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Post reported. Thank you!"),
+                    ),
+                  );
+                }
+              },
+              itemBuilder: (_) => [
+                if (canDelete)
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                        SizedBox(width: 8),
+                        Text("Delete Post",
+                            style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+                const PopupMenuItem(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      Icon(Icons.flag_outlined,
+                          color: Colors.orange, size: 20),
+                      SizedBox(width: 8),
+                      Text("Report Post"),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -95,7 +140,145 @@ class CrowdPostHeader extends StatelessWidget {
   }
 }
 
-/// 📝 USERNAME DISPLAY WITH BADGE
+// ===============================
+// ✅ FOLLOW BUTTON — OPTIMIZED
+// ===============================
+class _FollowButton extends StatefulWidget {
+  final String currentUserId;
+  final String targetUserId;
+
+  const _FollowButton({
+    required this.currentUserId,
+    required this.targetUserId,
+  });
+
+  @override
+  State<_FollowButton> createState() => _FollowButtonState();
+}
+
+class _FollowButtonState extends State<_FollowButton> {
+  bool _isFollowing = false;
+  bool _isLoading = true;
+
+  // ✅ Static cache so same user isn't fetched multiple times across posts
+  static final Map<String, bool> _followCache = {};
+
+  String get _cacheKey => '${widget.currentUserId}_${widget.targetUserId}';
+
+  @override
+  void initState() {
+    super.initState();
+    // Use cache if available — avoids DB call for repeated posts by same user
+    if (_followCache.containsKey(_cacheKey)) {
+      _isFollowing = _followCache[_cacheKey]!;
+      _isLoading = false;
+    } else {
+      _checkFollowStatus();
+    }
+  }
+
+  Future<void> _checkFollowStatus() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('follows')
+          .select('follower_id')
+          .eq('follower_id', widget.currentUserId)
+          .eq('following_id', widget.targetUserId)
+          .maybeSingle();
+
+      final isFollowing = response != null;
+      _followCache[_cacheKey] = isFollowing;
+
+      if (mounted) {
+        setState(() {
+          _isFollowing = isFollowing;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    // ✅ Optimistic update — feels instant
+    final wasFollowing = _isFollowing;
+    setState(() {
+      _isFollowing = !_isFollowing;
+      _followCache[_cacheKey] = _isFollowing;
+    });
+
+    try {
+      if (wasFollowing) {
+        await Supabase.instance.client
+            .from('follows')
+            .delete()
+            .eq('follower_id', widget.currentUserId)
+            .eq('following_id', widget.targetUserId);
+      } else {
+        await Supabase.instance.client
+            .from('follows')
+            .insert({
+              'follower_id': widget.currentUserId,
+              'following_id': widget.targetUserId,
+            });
+      }
+    } catch (e) {
+      // ✅ Rollback on failure
+      if (mounted) {
+        setState(() {
+          _isFollowing = wasFollowing;
+          _followCache[_cacheKey] = wasFollowing;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const SizedBox(
+        width: 60,
+        height: 24,
+        child: Center(
+          child: SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: _toggleFollow,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+       decoration: BoxDecoration(
+  color: _isFollowing ? Colors.transparent : Colors.green,
+  borderRadius: BorderRadius.circular(8), // ✅ rectangle with soft edges
+  border: Border.all(
+    color: _isFollowing ? Colors.grey : Colors.green,
+    width: 1.2,
+  ),
+),
+        child: Text(
+          _isFollowing ? "Following" : "Follow",
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: _isFollowing ? Colors.black87 : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ===============================
+// 📝 USERNAME DISPLAY WITH BADGE
+// ===============================
 class _UserNameDisplay extends StatefulWidget {
   final String userId;
   final String fallbackName;
@@ -124,7 +307,6 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
 
   Future<void> _fetchLatestUserData() async {
     if (_isLoading) return;
-    
     setState(() => _isLoading = true);
 
     try {
@@ -135,22 +317,17 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
           .single();
 
       if (mounted) {
-        final newName = response['username'] as String?;
-        final isDC = response['is_dc'] == true;
-        final isAdmin = response['is_admin'] == true;
-        
         setState(() {
+          final newName = response['username'] as String?;
           if (newName != null) _currentName = newName;
-          _isDC = isDC;
-          _isAdmin = isAdmin;
+          _isDC = response['is_dc'] == true;
+          _isAdmin = response['is_admin'] == true;
         });
       }
     } catch (e) {
       debugPrint('Failed to fetch user data: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -168,18 +345,16 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
         ),
         if (_isDC || _isAdmin) ...[
           const SizedBox(width: 4),
-          VerificationBadge(
-            isDC: _isDC,
-            isAdmin: _isAdmin,
-            size: 14,
-          ),
+          VerificationBadge(isDC: _isDC, isAdmin: _isAdmin, size: 14),
         ],
       ],
     );
   }
 }
 
-/// 👤 PROFILE AVATAR WITH BADGE
+// ===============================
+// 👤 PROFILE AVATAR WITH BADGE
+// ===============================
 class _ProfileAvatar extends StatefulWidget {
   final String userId;
   final String? fallbackUrl;
@@ -209,7 +384,6 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
 
   Future<void> _fetchLatestAvatar() async {
     if (_isLoading) return;
-    
     setState(() => _isLoading = true);
 
     try {
@@ -220,24 +394,17 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
           .single();
 
       if (mounted) {
-        final newUrl = response['profile_image_url'] as String?;
-        final newVersion = response['image_version'] as int?;
-        final isDC = response['is_dc'] == true;
-        final isAdmin = response['is_admin'] == true;
-        
         setState(() {
-          _currentUrl = newUrl;
-          _currentVersion = newVersion;
-          _isDC = isDC;
-          _isAdmin = isAdmin;
+          _currentUrl = response['profile_image_url'] as String?;
+          _currentVersion = response['image_version'] as int?;
+          _isDC = response['is_dc'] == true;
+          _isAdmin = response['is_admin'] == true;
         });
       }
     } catch (e) {
       debugPrint('Failed to fetch avatar: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

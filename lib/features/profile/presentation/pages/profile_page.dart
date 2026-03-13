@@ -132,7 +132,7 @@ child: imageUrl.isNotEmpty
         const Divider(height: 40),
 
         const Text(
-          "Village Causes & History",
+          "History",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
 

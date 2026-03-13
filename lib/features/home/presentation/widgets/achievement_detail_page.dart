@@ -199,13 +199,26 @@ USING (
                 expandedHeight: 300,
                 pinned: true,
                 backgroundColor: Colors.grey.shade800,
-                actions: canDelete ? [
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () => _showDeleteDialog(context),
-                    tooltip: "Delete Achievement",
-                  ),
-                ] : null,
+actions: canDelete ? [
+  PopupMenuButton<String>(
+    icon: const Icon(Icons.more_vert, color: Colors.white),
+    onSelected: (value) {
+      if (value == 'delete') _showDeleteDialog(context);
+    },
+    itemBuilder: (_) => [
+      const PopupMenuItem(
+        value: 'delete',
+        child: Row(
+          children: [
+            Icon(Icons.delete_outline, color: Colors.red, size: 20),
+            SizedBox(width: 8),
+            Text("Delete", style: TextStyle(color: Colors.red)),
+          ],
+        ),
+      ),
+    ],
+  ),
+] : null,
                 flexibleSpace: FlexibleSpaceBar(
                   background: imageUrl != null
                       ? Stack(
