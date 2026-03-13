@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
+
 
 
 class AchievementDetailPage extends StatelessWidget {
@@ -209,34 +211,21 @@ USING (
                       ? Stack(
                           fit: StackFit.expand,
                           children: [
-                            Image.network(
-                              imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: Colors.grey.shade200,
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    size: 80,
-                                    color: Colors.grey.shade400,
-                                  ),
-                                );
-                              },
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  color: Colors.grey.shade200,
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded /
-                                              loadingProgress.expectedTotalBytes!
-                                          : null,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+                            CachedNetworkImage(
+  imageUrl: imageUrl,
+  fit: BoxFit.cover,
+  placeholder: (context, url) => Container(
+    color: Colors.grey.shade200,
+  ),
+  errorWidget: (context, url, error) => Container(
+    color: Colors.grey.shade200,
+    child: Icon(
+      Icons.image_not_supported,
+      size: 80,
+      color: Colors.grey.shade400,
+    ),
+  ),
+),
                             Container(
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(

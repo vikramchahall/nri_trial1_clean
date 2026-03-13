@@ -8,6 +8,9 @@ import '../../../../components/my_media_grid_tile.dart';
 
 import 'follower_list_page.dart';
 
+
+import 'package:cached_network_image/cached_network_image.dart';
+
 import '../../../crowdfunding/domain/entities/crowd_post.dart';
 import '../../../crowdfunding/presentation/pages/post_detail_page.dart';
 
@@ -42,17 +45,18 @@ class ProfilePageContent extends StatelessWidget {
               }
 
               return ClipOval(
-                child: imageUrl.isNotEmpty
-                    ? Image.network(
-                        imageVersion > 0
-                            ? "$imageUrl?v=$imageVersion"
-                            : imageUrl,
-                        height: 90,
-                        width: 90,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _buildPlaceholder(),
-                      )
-                    : _buildPlaceholder(),
+child: imageUrl.isNotEmpty
+    ? CachedNetworkImage(
+        imageUrl: imageVersion > 0
+            ? "$imageUrl?v=$imageVersion"
+            : imageUrl,
+        height: 90,
+        width: 90,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => _buildPlaceholder(),
+        errorWidget: (context, url, error) => _buildPlaceholder(),
+      )
+    : _buildPlaceholder(),
               );
             },
           ),

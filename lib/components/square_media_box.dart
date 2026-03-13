@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 
 class SquareMediaBox extends StatefulWidget {
   final String url;
-  final String type; // image | video
+  final String type;
 
-  const SquareMediaBox({
-    super.key,
-    required this.url,
-    required this.type,
-  });
+  const SquareMediaBox({super.key, required this.url, required this.type});
 
   @override
   State<SquareMediaBox> createState() => _SquareMediaBoxState();
@@ -21,12 +18,9 @@ class _SquareMediaBoxState extends State<SquareMediaBox> {
   @override
   void initState() {
     super.initState();
-
     if (widget.type == 'video') {
       _controller = VideoPlayerController.network(widget.url)
-        ..initialize().then((_) {
-          setState(() {});
-        });
+        ..initialize().then((_) => setState(() {}));
     }
   }
 
@@ -39,20 +33,20 @@ class _SquareMediaBoxState extends State<SquareMediaBox> {
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
-      aspectRatio: 1, // 🔒 square
+      aspectRatio: 1,
       child: Container(
         color: Colors.black,
-        child: widget.type == 'video'
-            ? _buildVideo()
-            : _buildImage(),
+        child: widget.type == 'video' ? _buildVideo() : _buildImage(),
       ),
     );
   }
 
   Widget _buildImage() {
-    return Image.network(
-      widget.url,
+    return CachedNetworkImage(
+      imageUrl: widget.url,
       fit: BoxFit.contain,
+      placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+      errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.grey),
     );
   }
 
@@ -60,25 +54,16 @@ class _SquareMediaBoxState extends State<SquareMediaBox> {
     if (_controller == null || !_controller!.value.isInitialized) {
       return const Center(child: CircularProgressIndicator());
     }
-
     return Stack(
       alignment: Alignment.center,
       children: [
         VideoPlayer(_controller!),
-
-        // ▶️ PLAY / ⏸ PAUSE BUTTON
         GestureDetector(
-          onTap: () {
-            setState(() {
-              _controller!.value.isPlaying
-                  ? _controller!.pause()
-                  : _controller!.play();
-            });
-          },
+          onTap: () => setState(() {
+            _controller!.value.isPlaying ? _controller!.pause() : _controller!.play();
+          }),
           child: Icon(
-            _controller!.value.isPlaying
-                ? Icons.pause_circle_filled
-                : Icons.play_circle_filled,
+            _controller!.value.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
             size: 56,
             color: Colors.white,
           ),

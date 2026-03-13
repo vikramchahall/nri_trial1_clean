@@ -12,40 +12,45 @@ class SupabaseCrowdRepo implements CrowdRepo {
   // ===============================
   // 📌 POSTS
   // ===============================
-  @override
-  Future<List<CrowdPost>> fetchAllPosts() async {
-    final response = await _supabase
-        .from('posts')
-        .select()
-        .order('timestamp', ascending: false);
+@override
+Future<List<CrowdPost>> fetchAllPosts() async {
+  final response = await _supabase
+      .from('posts')
+      .select('*, likes(user_id)')  // join likes table
+      .order('timestamp', ascending: false);
 
-    return (response as List)
-        .map(
-          (json) => CrowdPost.fromJson(
-            json as Map<String, dynamic>,
-            json['id'].toString(),
-          ),
-        )
-        .toList();
-  }
+  return (response as List).map((json) {
+    // Extract user_ids from the joined likes
+    final likesList = (json['likes'] as List?)
+        ?.map((l) => l['user_id'].toString())
+        .toList() ?? [];
 
-  @override
-  Future<List<CrowdPost>> fetchPostsByUserId(String uid) async {
-    final response = await _supabase
-        .from('posts')
-        .select()
-        .eq('user_id', uid)
-        .order('timestamp', ascending: false);
+    return CrowdPost.fromJson(
+      {...json, 'likes': likesList},
+      json['id'].toString(),
+    );
+  }).toList();
+}
 
-    return (response as List)
-        .map(
-          (json) => CrowdPost.fromJson(
-            json as Map<String, dynamic>,
-            json['id'].toString(),
-          ),  
-        )
-        .toList();
-  }
+@override
+Future<List<CrowdPost>> fetchPostsByUserId(String uid) async {
+  final response = await _supabase
+      .from('posts')
+      .select('*, likes(user_id)')
+      .eq('user_id', uid)
+      .order('timestamp', ascending: false);
+
+  return (response as List).map((json) {
+    final likesList = (json['likes'] as List?)
+        ?.map((l) => l['user_id'].toString())
+        .toList() ?? [];
+
+    return CrowdPost.fromJson(
+      {...json, 'likes': likesList},
+      json['id'].toString(),
+    );
+  }).toList();
+}
 
   @override
   Future<void> createPost(CrowdPost post) async {
@@ -181,11 +186,38 @@ Future<void> _deletePostImage(String imageUrl) async {
   // ===============================
   // ❤️ LIKE / UNLIKE (stub for now)
   // ===============================
-  @override
-  Future<void> toggleLikePost(String postId, String userId) async {
-    // Will be implemented later
-  }
+@override
+Future<void> toggleLikePost(String postId, String userId) async {
+  try {
+    // Check if like already exists
+    final existing = await _supabase
+        .from('likes')
+        .select()
+        .eq('post_id', postId)
+        .eq('user_id', userId)
+        .maybeSingle();
 
+    if (existing != null) {
+      // Already liked → unlike
+      await _supabase
+          .from('likes')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', userId);
+    } else {
+      // Not liked → like
+      await _supabase
+          .from('likes')
+          .insert({
+            'post_id': postId,
+            'user_id': userId,
+          });
+    }
+  } catch (e) {
+    debugPrint("❌ toggleLikePost error: $e");
+    rethrow;
+  }
+}
   // ===============================
   // 💬 COMMENTS
   // ===============================
