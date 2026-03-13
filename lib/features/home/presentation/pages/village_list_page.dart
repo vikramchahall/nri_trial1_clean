@@ -125,44 +125,62 @@ class _VillageListPageState extends State<VillageListPage> {
     final city = village['city'] as String? ?? '';
 
     // ✅ Already following this village
-    if (_currentFollowedVillageId == villageId) {
+// ✅ Following a different village — ask to unfollow instead of switch
+if (_currentFollowedVillageId != null) {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("Already Following a Village"),
+      content: const Text(
+        "You already follow a village. Would you like to unfollow it first?",
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text("Unfollow"),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm != true) return;
+
+  // ✅ Just unfollow — don't follow the new one
+  try {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+
+    await Supabase.instance.client
+        .from('village_follows')
+        .delete()
+        .eq('user_id', uid);
+
+    if (mounted) {
+      setState(() => _currentFollowedVillageId = null);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("You already follow $villageName"),
+        const SnackBar(
+          content: Text("Village unfollowed"),
           backgroundColor: Colors.orange,
         ),
       );
-      return;
     }
-
-    // ✅ Following a different village — ask to switch
-    if (_currentFollowedVillageId != null) {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("Switch Village?"),
-          content: Text(
-            "You already follow a village. Do you want to switch to $villageName?",
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text("Switch"),
-            ),
-          ],
-        ),
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
       );
-      if (confirm != true) return;
     }
-
+  }
+  return; // ✅ stop here — don't follow new village
+}
     try {
       // ✅ Upsert — inserts or replaces existing (UNIQUE on user_id)
       await Supabase.instance.client.from('village_follows').upsert(
@@ -207,7 +225,7 @@ class _VillageListPageState extends State<VillageListPage> {
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: const Text(
-          "Follow Your Village",
+          "Connect Your Village",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,

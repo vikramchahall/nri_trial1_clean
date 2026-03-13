@@ -81,7 +81,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                           child: const Center(
                             child: Text(
-                              "Follow your village",
+                              "Connect your village",
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,

@@ -23,6 +23,14 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+
+		<!-- ================= URL SCHEMES (url_launcher) ================= -->
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>googlegmail</string>
+			<string>https</string>
+		</array>
+
 		<!-- ================= PERMISSIONS (MANDATORY) ================= -->
 		<!-- 📷 PHOTO & VIDEO LIBRARY -->
 		<key>NSPhotoLibraryUsageDescription</key>
@@ -31,9 +39,9 @@
 		<key>NSCameraUsageDescription</key>
 		<string>This app needs camera access to capture photos and videos.</string>
 		<!-- 🎥 MICROPHONE (ONLY IF VIDEO RECORDING IS ADDED LATER) -->
-		<!-- Safe to keep even if unused -->
 		<key>NSMicrophoneUsageDescription</key>
 		<string>This app may require microphone access for video recordings.</string>
+
 		<!-- ================= UI / ORIENTATION ================= -->
 		<key>UILaunchStoryboardName</key>
 		<string>LaunchScreen</string>
@@ -52,6 +60,7 @@
 			<string>UIInterfaceOrientationLandscapeLeft</string>
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
+
 		<!-- ================= PERFORMANCE ================= -->
 		<key>CADisableMinimumFrameDurationOnPhone</key>
 		<true/>

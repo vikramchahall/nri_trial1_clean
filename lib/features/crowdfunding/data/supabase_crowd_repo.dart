@@ -233,9 +233,13 @@ Future<void> toggleLikePost(String postId, String userId) async {
   }
 
   @override
-  Future<void> deleteComment(String postId, String commentId) async {
-    await _supabase.from('comments').delete().eq('id', commentId);
-  }
+@override
+Future<void> deleteComment(String postId, String commentId) async {
+  await _supabase
+      .from('comments')
+      .delete()
+      .eq('id', commentId);
+}
   @override
 Future<List<Map<String, dynamic>>> fetchOfficialUpdates() async {
   return await _supabase.from('official_updates').select().order('timestamp', ascending: false);

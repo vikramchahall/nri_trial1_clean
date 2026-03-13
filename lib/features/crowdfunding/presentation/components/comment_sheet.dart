@@ -47,8 +47,7 @@ class _CommentSheet extends StatefulWidget {
 
 class _CommentSheetState extends State<_CommentSheet> {
   final TextEditingController _controller = TextEditingController();
-  int _forceRefresh = 0;
-
+  
   void _addComment() {
     final user = context.read<AuthCubit>().currentUser;
     if (user == null || _controller.text.trim().isEmpty) return;
@@ -87,7 +86,6 @@ class _CommentSheetState extends State<_CommentSheet> {
 
             Flexible(
               child: StreamBuilder<List<Map<String, dynamic>>>(
-                key: ValueKey(_forceRefresh),
                 stream: Supabase.instance.client
                     .from('comments')
                     .stream(primaryKey: ['id'])
@@ -183,7 +181,6 @@ class _CommentSheetState extends State<_CommentSheet> {
                                       );
 
                                   setState(() {
-                                    _forceRefresh++;
                                   });
                                 },
                               )

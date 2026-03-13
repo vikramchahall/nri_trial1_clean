@@ -128,7 +128,7 @@ class MyProfilePage extends StatelessWidget {
               title: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text("@${user.username}"),
+                  Text("${user.username}"),
                   if (user.isDC || user.isAdmin) ...[
                     const SizedBox(width: 6),
                     VerificationBadge(

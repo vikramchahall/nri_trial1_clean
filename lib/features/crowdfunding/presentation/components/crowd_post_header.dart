@@ -40,8 +40,7 @@ class CrowdPostHeader extends StatelessWidget {
         leading: GestureDetector(
           onTap: () => _openProfile(context),
           child: _ProfileAvatar(
-            key: ValueKey('avatar_${post.userId}'),// ✅ unique key
- 
+            key: ValueKey('avatar_${post.userId}'),
             userId: post.userId,
             fallbackUrl: post.userProfileImageUrl,
           ),
@@ -49,8 +48,7 @@ class CrowdPostHeader extends StatelessWidget {
         title: GestureDetector(
           onTap: () => _openProfile(context),
           child: _UserNameDisplay(
-            key: ValueKey(post.userId),// ✅ unique key
-
+            key: ValueKey(post.userId),
             userId: post.userId,
             fallbackName: post.userName,
           ),
@@ -62,14 +60,11 @@ class CrowdPostHeader extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ✅ FOLLOW BUTTON — only for other users' posts
             if (currentUser != null && !isOwnPost)
               _FollowButton(
                 currentUserId: currentUser.uid,
                 targetUserId: post.userId,
               ),
-
-            // ✅ THREE DOTS
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               onSelected: (value) {
@@ -164,7 +159,6 @@ class _FollowButtonState extends State<_FollowButton> {
   bool _isFollowing = false;
   bool _isLoading = true;
 
-  // ✅ Static cache so same user isn't fetched multiple times across posts
   static final Map<String, bool> _followCache = {};
 
   String get _cacheKey => '${widget.currentUserId}_${widget.targetUserId}';
@@ -172,7 +166,6 @@ class _FollowButtonState extends State<_FollowButton> {
   @override
   void initState() {
     super.initState();
-    // Use cache if available — avoids DB call for repeated posts by same user
     if (_followCache.containsKey(_cacheKey)) {
       _isFollowing = _followCache[_cacheKey]!;
       _isLoading = false;
@@ -205,7 +198,6 @@ class _FollowButtonState extends State<_FollowButton> {
   }
 
   Future<void> _toggleFollow() async {
-    // ✅ Optimistic update — feels instant
     final wasFollowing = _isFollowing;
     setState(() {
       _isFollowing = !_isFollowing;
@@ -228,7 +220,6 @@ class _FollowButtonState extends State<_FollowButton> {
             });
       }
     } catch (e) {
-      // ✅ Rollback on failure
       if (mounted) {
         setState(() {
           _isFollowing = wasFollowing;
@@ -259,14 +250,14 @@ class _FollowButtonState extends State<_FollowButton> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-       decoration: BoxDecoration(
-  color: _isFollowing ? Colors.transparent : Colors.green,
-  borderRadius: BorderRadius.circular(8), // ✅ rectangle with soft edges
-  border: Border.all(
-    color: _isFollowing ? Colors.grey : Colors.green,
-    width: 1.2,
-  ),
-),
+        decoration: BoxDecoration(
+          color: _isFollowing ? Colors.transparent : Colors.green,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _isFollowing ? Colors.grey : Colors.green,
+            width: 1.2,
+          ),
+        ),
         child: Text(
           _isFollowing ? "Following" : "Follow",
           style: TextStyle(
@@ -298,6 +289,9 @@ class _UserNameDisplay extends StatefulWidget {
 }
 
 class _UserNameDisplayState extends State<_UserNameDisplay> {
+  // ✅ Cache so same user isn't fetched twice per session
+  static final Map<String, Map<String, dynamic>> _userCache = {};
+
   String? _currentName;
   bool _isDC = false;
   bool _isAdmin = false;
@@ -306,8 +300,15 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
   @override
   void initState() {
     super.initState();
-    _currentName = widget.fallbackName;
-    _fetchLatestUserData();
+    // ✅ Use cache instantly if available — no flash at all
+    if (_userCache.containsKey(widget.userId)) {
+      final cached = _userCache[widget.userId]!;
+      _currentName = cached['username'];
+      _isDC = cached['is_dc'] ?? false;
+      _isAdmin = cached['is_admin'] ?? false;
+    } else {
+      _fetchLatestUserData();
+    }
   }
 
   Future<void> _fetchLatestUserData() async {
@@ -322,11 +323,21 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
           .single();
 
       if (mounted) {
+        final newName = response['username'] as String?;
+        final isDC = response['is_dc'] == true;
+        final isAdmin = response['is_admin'] == true;
+
+        // ✅ Save to cache
+        _userCache[widget.userId] = {
+          'username': newName,
+          'is_dc': isDC,
+          'is_admin': isAdmin,
+        };
+
         setState(() {
-          final newName = response['username'] as String?;
           if (newName != null) _currentName = newName;
-          _isDC = response['is_dc'] == true;
-          _isAdmin = response['is_admin'] == true;
+          _isDC = isDC;
+          _isAdmin = isAdmin;
         });
       }
     } catch (e) {
@@ -342,13 +353,22 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(
-          child: Text(
-            _currentName ?? 'Unknown User',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: _isLoading
+              ? Container(
+                  width: 80,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                )
+              : Text(
+                  _currentName ?? 'Unknown User',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
         ),
-        if (_isDC || _isAdmin) ...[
+        if (!_isLoading && (_isDC || _isAdmin)) ...[
           const SizedBox(width: 4),
           VerificationBadge(isDC: _isDC, isAdmin: _isAdmin, size: 14),
         ],
