@@ -148,7 +148,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
             children: [
               CheckboxListTile(
                 title: const Text('Make Pind Leader'),
-                subtitle: const Text('Can access special Pind features like aasking for donations'),
+                subtitle: const Text('Features like black verification & asking for donations'),
                 value: makeAdmin,
                 onChanged: (val) => setState(() => makeAdmin = val ?? false),
               ),

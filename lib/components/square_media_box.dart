@@ -19,8 +19,10 @@ class _SquareMediaBoxState extends State<SquareMediaBox> {
   void initState() {
     super.initState();
     if (widget.type == 'video') {
-      _controller = VideoPlayerController.network(widget.url)
-        ..initialize().then((_) => setState(() {}));
+      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+        ..initialize().then((_) {
+          if (mounted) setState(() {});
+        });
     }
   }
 
@@ -32,43 +34,73 @@ class _SquareMediaBoxState extends State<SquareMediaBox> {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: Container(
-        color: Colors.black,
-        child: widget.type == 'video' ? _buildVideo() : _buildImage(),
-      ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: widget.type == 'video' ? _buildVideo() : _buildImage(),
     );
   }
 
   Widget _buildImage() {
-    return CachedNetworkImage(
-      imageUrl: widget.url,
-      fit: BoxFit.contain,
-      placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
-      errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.grey),
+    return AspectRatio(
+      aspectRatio: 1,
+      child: CachedNetworkImage(
+        imageUrl: widget.url,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          color: Colors.grey.shade200,
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+        errorWidget: (context, url, error) => Container(
+          color: Colors.grey.shade200,
+          child: const Icon(Icons.broken_image, color: Colors.grey),
+        ),
+      ),
     );
   }
 
-  Widget _buildVideo() {
-    if (_controller == null || !_controller!.value.isInitialized) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        VideoPlayer(_controller!),
-        GestureDetector(
-          onTap: () => setState(() {
-            _controller!.value.isPlaying ? _controller!.pause() : _controller!.play();
-          }),
-          child: Icon(
-            _controller!.value.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-            size: 56,
-            color: Colors.white,
-          ),
-        ),
-      ],
+Widget _buildVideo() {
+  if (_controller == null || !_controller!.value.isInitialized) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        color: Colors.grey.shade200,
+        child: const Center(child: CircularProgressIndicator()),
+      ),
     );
   }
+
+  return AspectRatio(
+    aspectRatio: _controller!.value.aspectRatio,
+    child: Stack(
+      alignment: Alignment.bottomCenter,
+      children: [
+        VideoPlayer(_controller!),
+
+        // ✅ Transparent overlay captures taps
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque, // ✅ KEY FIX
+            onTap: () => setState(() {
+              _controller!.value.isPlaying
+                  ? _controller!.pause()
+                  : _controller!.play();
+            }),
+          ),
+        ),
+
+        // Progress bar
+        VideoProgressIndicator(
+          _controller!,
+          allowScrubbing: true,
+          colors: VideoProgressColors(
+            playedColor: Colors.green,
+            bufferedColor: Colors.white38,
+            backgroundColor: Colors.black26,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 4),
+        ),
+      ],
+    ),
+  );
+}
 }
