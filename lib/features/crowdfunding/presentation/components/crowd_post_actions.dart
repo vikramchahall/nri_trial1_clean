@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/crowd_post.dart';
@@ -16,25 +17,28 @@ class CrowdPostActions extends StatelessWidget {
     required this.post,
   });
 
+  void _sharePost() {
+    final url = 'https://connect-nri.github.io/connectnri/?post=${post.id}';
+    Share.share(url);
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = context.read<AuthCubit>().currentUser;
 
-   return Padding(
-  padding: const EdgeInsets.fromLTRB(12, 10, 12, 14), // ✅ top & bottom space
-  child: Row(
-  
-
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🔹 LEFT SIDE (flexible)
+          // 🔹 LEFT SIDE
           Expanded(
             child: Wrap(
-              spacing: 10, // space BETWEEN groups only
+              spacing: 10,
               runSpacing: 6,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                // ❤️ LIKE + COUNT (GROUPED — NO GAP)
+                // ❤️ LIKE + COUNT
                 GestureDetector(
                   onTap: currentUser == null
                       ? null
@@ -96,12 +100,19 @@ class CrowdPostActions extends StatelessWidget {
                   ),
                 ),
 
+                // ✅ SHARE ICON — right after comments
+                InkWell(
+                  onTap: _sharePost,
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Icon(Icons.share_outlined, size: 20),
+                ),
+
                 // 💰 TARGET AMOUNT
                 if (post.targetAmount > 0)
                   Text(
                     "₹${post.targetAmount} needed",
                     style: const TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
                   ),
@@ -109,31 +120,27 @@ class CrowdPostActions extends StatelessWidget {
             ),
           ),
 
-// 🔹 RIGHT SIDE (SUPPORT – TEXT + ICON ONLY)
-if (post.targetAmount > 0)
-  InkWell(
-onTap: () => showDonationSheet(context, post),    borderRadius: BorderRadius.circular(20),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: const [
-        Icon(
-          Icons.volunteer_activism,
-          size: 20,
-          color: Colors.green,
-        ),
-        SizedBox(width: 4),
-        Text(
-          "Support",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
-      ],
-    ),
-  ),
-
+          // 🔹 RIGHT SIDE — SUPPORT
+          if (post.targetAmount > 0)
+            InkWell(
+              onTap: () => showDonationSheet(context, post),
+              borderRadius: BorderRadius.circular(20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: const [
+                  Icon(Icons.volunteer_activism, size: 20, color: Colors.green),
+                  SizedBox(width: 4),
+                  Text(
+                    "Support",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

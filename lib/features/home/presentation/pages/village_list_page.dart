@@ -5,6 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 import '../../../profile/presentation/pages/user_profile_page.dart';
 
+import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
+
 class VillageListPage extends StatefulWidget {
   const VillageListPage({super.key});
 
@@ -18,7 +20,7 @@ class _VillageListPageState extends State<VillageListPage> {
   List<Map<String, dynamic>> _filteredVillages = [];
   bool _isLoading = true;
   String? _error;
-  String? _currentFollowedVillageId; // ✅ track which village user follows
+  String? _currentFollowedVillageId;
 
   @override
   void initState() {
@@ -66,14 +68,17 @@ class _VillageListPageState extends State<VillageListPage> {
       final response = await Supabase.instance.client
           .from('profiles')
           .select(
-              'id, username, panchayat_id, city, block_name, phone, profile_image_url')
+              'id, username, panchayat_id, city, block_name, phone, profile_image_url, is_admin') // ✅ added is_admin
           .order('username', ascending: true);
 
       final all = List<Map<String, dynamic>>.from(response);
 
       final villages = all.where((v) {
         final p = v['panchayat_id'];
-        return p != null && p.toString().trim().isNotEmpty;
+        final isAdmin = v['is_admin'] == true; // ✅ must have black badge
+        return p != null &&
+            p.toString().trim().isNotEmpty &&
+            isAdmin; // ✅ both conditions required
       }).toList();
 
       if (mounted) {
@@ -124,65 +129,60 @@ class _VillageListPageState extends State<VillageListPage> {
     final blockName = village['block_name'] as String? ?? '';
     final city = village['city'] as String? ?? '';
 
-    // ✅ Already following this village
-// ✅ Following a different village — ask to unfollow instead of switch
-if (_currentFollowedVillageId != null) {
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text("Already Following a Village"),
-      content: const Text(
-        "You already follow a village. Would you like to unfollow it first?",
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text("Cancel"),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, true),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
+    if (_currentFollowedVillageId != null) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Already Following a Village"),
+          content: const Text(
+            "You already follow a village. Would you like to unfollow it first?",
           ),
-          child: const Text("Unfollow"),
-        ),
-      ],
-    ),
-  );
-
-  if (confirm != true) return;
-
-  // ✅ Just unfollow — don't follow the new one
-  try {
-    final uid = Supabase.instance.client.auth.currentUser?.id;
-    if (uid == null) return;
-
-    await Supabase.instance.client
-        .from('village_follows')
-        .delete()
-        .eq('user_id', uid);
-
-    if (mounted) {
-      setState(() => _currentFollowedVillageId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Village unfollowed"),
-          backgroundColor: Colors.orange,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Unfollow"),
+            ),
+          ],
         ),
       );
+
+      if (confirm != true) return;
+
+      try {
+        await Supabase.instance.client
+            .from('village_follows')
+            .delete()
+            .eq('user_id', uid);
+
+        if (mounted) {
+          setState(() => _currentFollowedVillageId = null);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Village unfollowed"),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text("Error: $e"), backgroundColor: Colors.red),
+          );
+        }
+      }
+      return;
     }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-      );
-    }
-  }
-  return; // ✅ stop here — don't follow new village
-}
+
     try {
-      // ✅ Upsert — inserts or replaces existing (UNIQUE on user_id)
       await Supabase.instance.client.from('village_follows').upsert(
         {
           'user_id': uid,
@@ -204,7 +204,7 @@ if (_currentFollowedVillageId != null) {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context); // go back after selecting
+        Navigator.pop(context);
       }
     } catch (e) {
       debugPrint("❌ Error following village: $e");
@@ -301,7 +301,7 @@ if (_currentFollowedVillageId != null) {
                           Text(
                             _searchController.text.isNotEmpty
                                 ? "No villages match your search"
-                                : "No villages with Panchayat ID found",
+                                : "No verified villages found",
                             style: TextStyle(
                                 color: Colors.grey.shade600, fontSize: 16),
                             textAlign: TextAlign.center,
@@ -403,10 +403,24 @@ class _VillageCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15),
+                  // ✅ Name + black badge side by side
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const VerificationBadge(
+                        isDC: false,
+                        isAdmin: true, // ✅ always true since we filtered
+                        size: 16,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -470,7 +484,7 @@ class _VillageCard extends StatelessWidget {
 
           const SizedBox(width: 8),
 
-          // ✅ Follow button
+          // Follow button
           GestureDetector(
             onTap: onSelect,
             child: Container(

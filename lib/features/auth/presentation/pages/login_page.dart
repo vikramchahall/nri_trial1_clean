@@ -223,7 +223,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               recognizer: TapGestureRecognizer()
                                 ..onTap = () {
-                                  _launchUrl('https://dasvandh.github.io/terms/');
+                                  _launchUrl('https://connect-nri.github.io/terms/');
                                 },
                             ),
                             const TextSpan(text: ' and '),
@@ -235,7 +235,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               recognizer: TapGestureRecognizer()
                                 ..onTap = () {
-                                  _launchUrl('https://dasvandh.github.io/policy/');
+                                  _launchUrl('https://connect-nri.github.io/policy/');
                                 },
                             ),
                           ],

@@ -47,11 +47,11 @@ void _showAnnouncementDialog(BuildContext context) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.transparent,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) {
         final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-        final bottomPadding = MediaQuery.of(context).padding.bottom;
 
         return Padding(
           padding: EdgeInsets.only(bottom: bottomInset),
@@ -92,7 +92,7 @@ void _showAnnouncementDialog(BuildContext context) {
                   Expanded(
                     child: ListView(
                       controller: controller,
-                      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomPadding),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                       children: [
                         TextField(
                           controller: titleCtrl,
@@ -266,11 +266,11 @@ void _showAchievementDialog(BuildContext context) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.transparent,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) {
         final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-        final bottomPadding = MediaQuery.of(context).padding.bottom;
 
         return Padding(
           padding: EdgeInsets.only(bottom: bottomInset),
@@ -311,7 +311,7 @@ void _showAchievementDialog(BuildContext context) {
                   Expanded(
                     child: ListView(
                       controller: controller,
-                      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomPadding),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                       children: [
                         TextField(
                           controller: titleCtrl,

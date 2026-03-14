@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:nri_trial1_clean/features/profile/presentation/pages/user_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
@@ -25,6 +26,8 @@ class CrowdPostHeader extends StatelessWidget {
       ),
     );
   }
+
+  // ✅ Share deep link — points to your GitHub Pages redirect
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +93,7 @@ class CrowdPostHeader extends StatelessWidget {
                       ],
                     ),
                   ),
+              
                 const PopupMenuItem(
                   value: 'report',
                   child: Row(
@@ -212,12 +216,10 @@ class _FollowButtonState extends State<_FollowButton> {
             .eq('follower_id', widget.currentUserId)
             .eq('following_id', widget.targetUserId);
       } else {
-        await Supabase.instance.client
-            .from('follows')
-            .insert({
-              'follower_id': widget.currentUserId,
-              'following_id': widget.targetUserId,
-            });
+        await Supabase.instance.client.from('follows').insert({
+          'follower_id': widget.currentUserId,
+          'following_id': widget.targetUserId,
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -289,7 +291,6 @@ class _UserNameDisplay extends StatefulWidget {
 }
 
 class _UserNameDisplayState extends State<_UserNameDisplay> {
-  // ✅ Cache so same user isn't fetched twice per session
   static final Map<String, Map<String, dynamic>> _userCache = {};
 
   String? _currentName;
@@ -300,7 +301,6 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
   @override
   void initState() {
     super.initState();
-    // ✅ Use cache instantly if available — no flash at all
     if (_userCache.containsKey(widget.userId)) {
       final cached = _userCache[widget.userId]!;
       _currentName = cached['username'];
@@ -327,7 +327,6 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
         final isDC = response['is_dc'] == true;
         final isAdmin = response['is_admin'] == true;
 
-        // ✅ Save to cache
         _userCache[widget.userId] = {
           'username': newName,
           'is_dc': isDC,
