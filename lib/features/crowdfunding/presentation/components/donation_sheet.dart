@@ -31,7 +31,6 @@ class _DonationSheetState extends State<_DonationSheet> {
   final TextEditingController causeController = TextEditingController();
   bool _whatsappFailed = false;
 
-  // Format phone for display: +91 98765 43210
   String get _displayPhone {
     final digits = widget.post.phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
     if (digits.length == 10) {
@@ -46,10 +45,12 @@ class _DonationSheetState extends State<_DonationSheet> {
   @override
   Widget build(BuildContext context) {
     final currentUser = context.read<AuthCubit>().currentUser;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Padding(
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+        bottom: bottomInset + bottomPadding,
         left: 20,
         right: 20,
         top: 20,
@@ -68,7 +69,6 @@ class _DonationSheetState extends State<_DonationSheet> {
 
             const SizedBox(height: 16),
 
-            // ✅ SHOW PHYSICAL PHONE NUMBER
             if (widget.post.phoneNumber.isNotEmpty)
               Container(
                 width: double.infinity,
@@ -101,7 +101,6 @@ class _DonationSheetState extends State<_DonationSheet> {
                         ],
                       ),
                     ),
-                    // ✅ COPY BUTTON
                     IconButton(
                       icon: const Icon(Icons.copy, size: 18, color: Colors.green),
                       tooltip: "Copy number",
@@ -146,7 +145,7 @@ class _DonationSheetState extends State<_DonationSheet> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                 icon: const Icon(Icons.chat, color: Colors.white),
+                icon: const Icon(Icons.chat, color: Colors.white),
                 label: const Text("Confirm on WhatsApp"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF25D366),
@@ -178,7 +177,6 @@ class _DonationSheetState extends State<_DonationSheet> {
               ),
             ),
 
-            // ✅ FALLBACK MESSAGE if WhatsApp fails
             if (_whatsappFailed)
               Padding(
                 padding: const EdgeInsets.only(top: 10),

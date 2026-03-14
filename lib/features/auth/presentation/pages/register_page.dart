@@ -47,18 +47,17 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-context.read<AuthCubit>().registerUser(
-  email: emailController.text,
-  password: pwController.text,
-  username: usernameController.text,
-  userType: selectedUserType,
-  // MAKE SURE THESE ARE NOT MISSING:
-  city: cityController.text,
-  town: townController.text,
-  block: blockController.text,
-  panchayatId: panchayatIdController.text,
-  phone: phoneController.text,
-);
+    context.read<AuthCubit>().registerUser(
+      email: emailController.text,
+      password: pwController.text,
+      username: usernameController.text,
+      userType: selectedUserType,
+      city: cityController.text,
+      town: townController.text,
+      block: blockController.text,
+      panchayatId: panchayatIdController.text,
+      phone: phoneController.text,
+    );
   }
 
   // ================= ERROR HANDLER =================
@@ -110,6 +109,11 @@ context.read<AuthCubit>().registerUser(
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
+    // Hint text changes based on selected type — same controller, same backend
+    final usernameHint = selectedUserType == 'Pind'
+        ? "Pind Name"
+        : "Unique Username";
+
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is AuthError) {
@@ -124,9 +128,12 @@ context.read<AuthCubit>().registerUser(
           onPressed: () => _showLanguageDialog(context),
           child: const Icon(Icons.translate, color: Colors.green),
         ),
-        body: Center(
+        body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(25),
+            padding: EdgeInsets.fromLTRB(
+              25, 25, 25,
+              25 + MediaQuery.of(context).padding.bottom,
+            ),
             child: Column(
               children: [
                 const Icon(
@@ -152,8 +159,8 @@ context.read<AuthCubit>().registerUser(
                   ],
                   onPressed: (index) {
                     setState(() {
-                      selectedUserType =
-                          index == 0 ? 'Pind' : 'User';
+                      selectedUserType = index == 0 ? 'Pind' : 'User';
+                      usernameController.clear(); // clear on switch
                     });
                   },
                   borderRadius: BorderRadius.circular(10),
@@ -170,9 +177,10 @@ context.read<AuthCubit>().registerUser(
                 ),
                 const SizedBox(height: 25),
 
+                // ✅ Hint changes — backend field stays the same
                 MyTextField(
                   controller: usernameController,
-                  hintText: "Unique Username",
+                  hintText: usernameHint,
                   obscureText: false,
                 ),
                 const SizedBox(height: 10),

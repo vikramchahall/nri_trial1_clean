@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 /// Widget that displays achievements in an Instagram-style grid
 class AchievementPlate extends StatelessWidget {
@@ -103,34 +104,18 @@ class AchievementPlate extends StatelessWidget {
                     children: [
                       // Background Image
                       if (imageUrl != null)
-                        Image.network(
-                          imageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.grey.shade200,
-                              child: Icon(
-                                Icons.workspace_premium,
-                                size: 40,
-                                color: Colors.grey.shade400,
-                              ),
-                            );
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              color: Colors.grey.shade200,
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              ),
-                            );
-                          },
-                        )
+CachedNetworkImage(
+  imageUrl: imageUrl,
+  fit: BoxFit.cover,
+  placeholder: (context, url) => Container(
+    color: Colors.grey.shade200,
+  ),
+  errorWidget: (context, url, error) => Icon(
+    Icons.workspace_premium,
+    color: Colors.grey.shade400,
+    size: 40,
+  ),
+)
                       else
                         Container(
                           color: Colors.grey.shade200,
@@ -344,34 +329,24 @@ class AchievementDetailPage extends StatelessWidget {
                       ? Stack(
                           fit: StackFit.expand,
                           children: [
-                            Image.network(
-                              imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: Colors.grey.shade200,
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    size: 80,
-                                    color: Colors.grey.shade400,
-                                  ),
-                                );
-                              },
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  color: Colors.grey.shade200,
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded /
-                                              loadingProgress.expectedTotalBytes!
-                                          : null,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+CachedNetworkImage(
+  imageUrl: imageUrl,
+  fit: BoxFit.cover,
+  placeholder: (context, url) => Container(
+    color: Colors.grey.shade200,
+    child: const Center(
+      child: CircularProgressIndicator(),
+    ),
+  ),
+  errorWidget: (context, url, error) => Container(
+    color: Colors.grey.shade200,
+    child: Icon(
+      Icons.image_not_supported,
+      size: 80,
+      color: Colors.grey.shade400,
+    ),
+  ),
+),
                             Container(
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(

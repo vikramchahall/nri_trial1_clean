@@ -3,23 +3,22 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/entities/app_user.dart';
 import '../domain/repos/auth_repo.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseAuthRepo implements AuthRepo {
   final SupabaseClient _supabase = Supabase.instance.client;
-final SupabaseClient supabase = Supabase.instance.client;
+  final SupabaseClient supabase = Supabase.instance.client;
 
   @override
-Future<void> resendVerificationEmail(String email) async {
-  try {
-    await supabase.auth.resend(
-      type: OtpType.signup,
-      email: email,
-    );
-  } catch (e) {
-    throw Exception('Failed to resend verification email: ${e.toString()}');
+  Future<void> resendVerificationEmail(String email) async {
+    try {
+      await supabase.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
+    } catch (e) {
+      throw Exception('Failed to resend verification email: ${e.toString()}');
+    }
   }
-}
 
   // ===============================
   // 👤 GET CURRENT USER (FRESH DATA)
@@ -30,7 +29,6 @@ Future<void> resendVerificationEmail(String email) async {
       final user = _supabase.auth.currentUser;
       if (user == null) return null;
 
-      // 🔥 SINGLE QUERY WITH JOINS (NO CACHE)
       final response = await _supabase
           .from('profiles')
           .select(
@@ -41,13 +39,11 @@ Future<void> resendVerificationEmail(String email) async {
           .eq('id', user.id)
           .single();
 
-      // Followers
       final List followersRaw = response['follows'] ?? [];
       final List<String> followerIds = followersRaw
           .map((f) => f['follower_id'].toString())
           .toList();
 
-      // Following
       final List followingRaw = response['following'] ?? [];
       final List<String> followingIds = followingRaw
           .map((f) => f['following_id'].toString())
@@ -88,7 +84,7 @@ Future<void> resendVerificationEmail(String email) async {
   // ===============================
   // 📝 REGISTER
   // ===============================
-@override
+  @override
 Future<AppUser?> registerUser({
   required String email,
   required String password,
@@ -114,6 +110,33 @@ Future<AppUser?> registerUser({
       throw Exception('Username already taken. Please choose another.');
     }
 
+    // ✅ Check if email exists but is unverified BEFORE signup
+    final existingProfile = await _supabase
+        .from('profiles')
+        .select('id, email')
+        .eq('email', email.trim())
+        .maybeSingle();
+
+    if (existingProfile != null) {
+      // Email exists in profiles — check if verified in auth
+      try {
+        await _supabase.auth.resend(
+          type: OtpType.signup,
+          email: email.trim(),
+        );
+        // Resend worked = unverified
+        throw Exception('__UNVERIFIED__');
+      } catch (resendError) {
+        if (resendError.toString().contains('__UNVERIFIED__')) {
+          rethrow;
+        }
+        // Resend failed = verified = real duplicate
+        throw Exception(
+          'Email already registered. Please try Forgot Password.',
+        );
+      }
+    }
+
     // 🔐 Auth signup
     final res = await _supabase.auth.signUp(
       email: email.trim(),
@@ -123,6 +146,16 @@ Future<AppUser?> registerUser({
 
     final user = res.user;
     if (user == null) throw Exception('User creation failed');
+
+    // ✅ If identities is empty = email already exists in auth but unverified
+    if (res.user!.identities != null && res.user!.identities!.isEmpty) {
+      await _supabase.auth.resend(
+        type: OtpType.signup,
+        email: email.trim(),
+      );
+      await _supabase.auth.signOut();
+      throw Exception('__UNVERIFIED__');
+    }
 
     // 🧾 Profile insert
     await _supabase.from('profiles').insert({
@@ -142,15 +175,22 @@ Future<AppUser?> registerUser({
       'is_dc': false,
     });
 
-    // 🚪 Force email verification
     await _supabase.auth.signOut();
     return null;
 
   } on AuthException catch (e) {
-    // ✅ Handle Supabase Auth errors
     if (e.message.toLowerCase().contains('already registered') ||
         e.message.toLowerCase().contains('user already exists')) {
-      throw Exception('Email already registered. Please try Forgot Password.');
+      try {
+        await _supabase.auth.resend(
+          type: OtpType.signup,
+          email: email.trim(),
+        );
+        throw Exception('__UNVERIFIED__');
+      } catch (resendError) {
+        if (resendError.toString().contains('__UNVERIFIED__')) rethrow;
+        throw Exception('Email already registered. Please try Forgot Password.');
+      }
     } else if (e.message.toLowerCase().contains('invalid email')) {
       throw Exception('Please enter a valid email address.');
     } else if (e.message.toLowerCase().contains('weak password')) {
@@ -158,30 +198,36 @@ Future<AppUser?> registerUser({
     } else {
       throw Exception('Registration failed: ${e.message}');
     }
-    
   } on PostgrestException catch (e) {
-    // ✅ Handle Database errors - DUPLICATE KEY FIX
     if (e.message.toLowerCase().contains('duplicate key') ||
         e.message.toLowerCase().contains('profiles_pkey') ||
         e.code == '23505') {
-      throw Exception('Email already registered. Please try Forgot Password.');
+      try {
+        await _supabase.auth.resend(
+          type: OtpType.signup,
+          email: email.trim(),
+        );
+        throw Exception('__UNVERIFIED__');
+      } catch (resendError) {
+        if (resendError.toString().contains('__UNVERIFIED__')) rethrow;
+        throw Exception('Email already registered. Please try Forgot Password.');
+      }
     } else if (e.message.toLowerCase().contains('violates check constraint')) {
       throw Exception('Invalid data provided. Please check your inputs.');
     } else {
       throw Exception('Registration failed. Please try again.');
     }
-    
   } catch (e) {
-    // ✅ Handle any other errors
     final errorMsg = e.toString().toLowerCase();
-    
     if (errorMsg.contains('username already taken')) {
       throw Exception('Username already taken. Please choose another.');
-    } else if (errorMsg.contains('duplicate') || 
+    } else if (e.toString().contains('__UNVERIFIED__')) {
+      rethrow;
+    } else if (errorMsg.contains('duplicate') ||
                errorMsg.contains('already registered')) {
       throw Exception('Email already registered. Please try Forgot Password.');
     } else {
-      throw Exception('Registration failed. Please try again.');
+      rethrow;
     }
   }
 }
@@ -254,19 +300,13 @@ Future<AppUser?> registerUser({
       final email = user.email;
       if (email == null) throw Exception('Email not found');
 
-      // 🔐 Re-auth
       await _supabase.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
-      // 🧾 Delete profile
       await _supabase.from('profiles').delete().eq('id', user.id);
-
-      // 🗑️ Delete auth user
       await _supabase.rpc('delete_user');
-
-      // 🚪 Logout
       await _supabase.auth.signOut();
     } on AuthException catch (e) {
       if (e.message.contains('Invalid login credentials')) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:nri_trial1_clean/features/profile/presentation/pages/user_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
@@ -26,12 +27,14 @@ class CrowdPostHeader extends StatelessWidget {
     );
   }
 
+  // ✅ Share deep link — points to your GitHub Pages redirect
+
   @override
   Widget build(BuildContext context) {
     final currentUser = context.read<AuthCubit>().currentUser;
-
     final canDelete =
         currentUser?.uid == post.userId || (currentUser?.isDC ?? false);
+    final isOwnPost = currentUser?.uid == post.userId;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -40,6 +43,7 @@ class CrowdPostHeader extends StatelessWidget {
         leading: GestureDetector(
           onTap: () => _openProfile(context),
           child: _ProfileAvatar(
+            key: ValueKey('avatar_${post.userId}'),
             userId: post.userId,
             fallbackUrl: post.userProfileImageUrl,
           ),
@@ -47,6 +51,7 @@ class CrowdPostHeader extends StatelessWidget {
         title: GestureDetector(
           onTap: () => _openProfile(context),
           child: _UserNameDisplay(
+            key: ValueKey(post.userId),
             userId: post.userId,
             fallbackName: post.userName,
           ),
@@ -55,12 +60,55 @@ class CrowdPostHeader extends StatelessWidget {
           DateFormat('dd MMM, yyyy').format(post.timestamp),
           style: const TextStyle(fontSize: 11),
         ),
-        trailing: canDelete
-            ? IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                onPressed: () => _confirmDelete(context),
-              )
-            : null,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (currentUser != null && !isOwnPost)
+              _FollowButton(
+                currentUserId: currentUser.uid,
+                targetUserId: post.userId,
+              ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'delete') _confirmDelete(context);
+                if (value == 'report') {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Post reported. Thank you!"),
+                    ),
+                  );
+                }
+              },
+              itemBuilder: (_) => [
+                if (canDelete)
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                        SizedBox(width: 8),
+                        Text("Delete Post",
+                            style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+              
+                const PopupMenuItem(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      Icon(Icons.flag_outlined,
+                          color: Colors.orange, size: 20),
+                      SizedBox(width: 8),
+                      Text("Report Post"),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -95,12 +143,145 @@ class CrowdPostHeader extends StatelessWidget {
   }
 }
 
-/// 📝 USERNAME DISPLAY WITH BADGE
+// ===============================
+// ✅ FOLLOW BUTTON — OPTIMIZED
+// ===============================
+class _FollowButton extends StatefulWidget {
+  final String currentUserId;
+  final String targetUserId;
+
+  const _FollowButton({
+    required this.currentUserId,
+    required this.targetUserId,
+  });
+
+  @override
+  State<_FollowButton> createState() => _FollowButtonState();
+}
+
+class _FollowButtonState extends State<_FollowButton> {
+  bool _isFollowing = false;
+  bool _isLoading = true;
+
+  static final Map<String, bool> _followCache = {};
+
+  String get _cacheKey => '${widget.currentUserId}_${widget.targetUserId}';
+
+  @override
+  void initState() {
+    super.initState();
+    if (_followCache.containsKey(_cacheKey)) {
+      _isFollowing = _followCache[_cacheKey]!;
+      _isLoading = false;
+    } else {
+      _checkFollowStatus();
+    }
+  }
+
+  Future<void> _checkFollowStatus() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('follows')
+          .select('follower_id')
+          .eq('follower_id', widget.currentUserId)
+          .eq('following_id', widget.targetUserId)
+          .maybeSingle();
+
+      final isFollowing = response != null;
+      _followCache[_cacheKey] = isFollowing;
+
+      if (mounted) {
+        setState(() {
+          _isFollowing = isFollowing;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    final wasFollowing = _isFollowing;
+    setState(() {
+      _isFollowing = !_isFollowing;
+      _followCache[_cacheKey] = _isFollowing;
+    });
+
+    try {
+      if (wasFollowing) {
+        await Supabase.instance.client
+            .from('follows')
+            .delete()
+            .eq('follower_id', widget.currentUserId)
+            .eq('following_id', widget.targetUserId);
+      } else {
+        await Supabase.instance.client.from('follows').insert({
+          'follower_id': widget.currentUserId,
+          'following_id': widget.targetUserId,
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isFollowing = wasFollowing;
+          _followCache[_cacheKey] = wasFollowing;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const SizedBox(
+        width: 60,
+        height: 24,
+        child: Center(
+          child: SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: _toggleFollow,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: _isFollowing ? Colors.transparent : Colors.green,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _isFollowing ? Colors.grey : Colors.green,
+            width: 1.2,
+          ),
+        ),
+        child: Text(
+          _isFollowing ? "Following" : "Follow",
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: _isFollowing ? Colors.black87 : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ===============================
+// 📝 USERNAME DISPLAY WITH BADGE
+// ===============================
 class _UserNameDisplay extends StatefulWidget {
   final String userId;
   final String fallbackName;
 
   const _UserNameDisplay({
+    super.key,
     required this.userId,
     required this.fallbackName,
   });
@@ -110,6 +291,8 @@ class _UserNameDisplay extends StatefulWidget {
 }
 
 class _UserNameDisplayState extends State<_UserNameDisplay> {
+  static final Map<String, Map<String, dynamic>> _userCache = {};
+
   String? _currentName;
   bool _isDC = false;
   bool _isAdmin = false;
@@ -118,13 +301,18 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
   @override
   void initState() {
     super.initState();
-    _currentName = widget.fallbackName;
-    _fetchLatestUserData();
+    if (_userCache.containsKey(widget.userId)) {
+      final cached = _userCache[widget.userId]!;
+      _currentName = cached['username'];
+      _isDC = cached['is_dc'] ?? false;
+      _isAdmin = cached['is_admin'] ?? false;
+    } else {
+      _fetchLatestUserData();
+    }
   }
 
   Future<void> _fetchLatestUserData() async {
     if (_isLoading) return;
-    
     setState(() => _isLoading = true);
 
     try {
@@ -138,7 +326,13 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
         final newName = response['username'] as String?;
         final isDC = response['is_dc'] == true;
         final isAdmin = response['is_admin'] == true;
-        
+
+        _userCache[widget.userId] = {
+          'username': newName,
+          'is_dc': isDC,
+          'is_admin': isAdmin,
+        };
+
         setState(() {
           if (newName != null) _currentName = newName;
           _isDC = isDC;
@@ -148,9 +342,7 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
     } catch (e) {
       debugPrint('Failed to fetch user data: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -160,31 +352,39 @@ class _UserNameDisplayState extends State<_UserNameDisplay> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(
-          child: Text(
-            _currentName ?? 'Unknown User',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: _isLoading
+              ? Container(
+                  width: 80,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                )
+              : Text(
+                  _currentName ?? 'Unknown User',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
         ),
-        if (_isDC || _isAdmin) ...[
+        if (!_isLoading && (_isDC || _isAdmin)) ...[
           const SizedBox(width: 4),
-          VerificationBadge(
-            isDC: _isDC,
-            isAdmin: _isAdmin,
-            size: 14,
-          ),
+          VerificationBadge(isDC: _isDC, isAdmin: _isAdmin, size: 14),
         ],
       ],
     );
   }
 }
 
-/// 👤 PROFILE AVATAR WITH BADGE
+// ===============================
+// 👤 PROFILE AVATAR WITH BADGE
+// ===============================
 class _ProfileAvatar extends StatefulWidget {
   final String userId;
   final String? fallbackUrl;
 
   const _ProfileAvatar({
+    super.key,
     required this.userId,
     this.fallbackUrl,
   });
@@ -209,7 +409,6 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
 
   Future<void> _fetchLatestAvatar() async {
     if (_isLoading) return;
-    
     setState(() => _isLoading = true);
 
     try {
@@ -220,24 +419,17 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
           .single();
 
       if (mounted) {
-        final newUrl = response['profile_image_url'] as String?;
-        final newVersion = response['image_version'] as int?;
-        final isDC = response['is_dc'] == true;
-        final isAdmin = response['is_admin'] == true;
-        
         setState(() {
-          _currentUrl = newUrl;
-          _currentVersion = newVersion;
-          _isDC = isDC;
-          _isAdmin = isAdmin;
+          _currentUrl = response['profile_image_url'] as String?;
+          _currentVersion = response['image_version'] as int?;
+          _isDC = response['is_dc'] == true;
+          _isAdmin = response['is_admin'] == true;
         });
       }
     } catch (e) {
       debugPrint('Failed to fetch avatar: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

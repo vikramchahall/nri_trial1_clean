@@ -25,14 +25,10 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-
-    // ✅ AUTO-FILL FROM CUBIT (SAFE & SYNC)
     final authCubit = context.read<AuthCubit>();
-
     if (authCubit.prefillEmail != null) {
       emailController.text = authCubit.prefillEmail!;
     }
-
     if (authCubit.prefillPassword != null) {
       pwController.text = authCubit.prefillPassword!;
     }
@@ -41,7 +37,6 @@ class _LoginPageState extends State<LoginPage> {
   void login() {
     final email = emailController.text.trim();
     final pw = pwController.text;
-
     if (email.isNotEmpty && pw.isNotEmpty) {
       context.read<AuthCubit>().login(email, pw);
     }
@@ -58,27 +53,21 @@ class _LoginPageState extends State<LoginPage> {
             ListTile(
               title: const Text("English"),
               onTap: () {
-                context
-                    .read<LanguageCubit>()
-                    .changeLanguage(AppLanguage.english);
+                context.read<LanguageCubit>().changeLanguage(AppLanguage.english);
                 Navigator.pop(innerContext);
               },
             ),
             ListTile(
               title: const Text("हिंदी"),
               onTap: () {
-                context
-                    .read<LanguageCubit>()
-                    .changeLanguage(AppLanguage.hindi);
+                context.read<LanguageCubit>().changeLanguage(AppLanguage.hindi);
                 Navigator.pop(innerContext);
               },
             ),
             ListTile(
               title: const Text("ਪੰਜਾਬੀ"),
               onTap: () {
-                context
-                    .read<LanguageCubit>()
-                    .changeLanguage(AppLanguage.punjabi);
+                context.read<LanguageCubit>().changeLanguage(AppLanguage.punjabi);
                 Navigator.pop(innerContext);
               },
             ),
@@ -121,7 +110,6 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     const SizedBox(height: 60),
 
-                    // Logo
                     Image.asset(
                       'assets/logo.png',
                       height: 150,
@@ -130,7 +118,6 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 15),
 
-                    // Initiative text
                     Text(
                       "An initiative by District Administration Jalandhar",
                       textAlign: TextAlign.center,
@@ -142,7 +129,6 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 25),
 
-                    // Welcome Text
                     Text(
                       AppTexts.get('welcome', lang),
                       textAlign: TextAlign.center,
@@ -155,7 +141,6 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 25),
 
-                    // Email Field
                     MyTextField(
                       controller: emailController,
                       hintText: AppTexts.get('email', lang),
@@ -164,31 +149,29 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 10),
 
-                    // Password Field
                     MyTextField(
                       controller: pwController,
                       hintText: AppTexts.get('password', lang),
                       obscureText: true,
                     ),
 
-                    // Forgot Password
+                    // ✅ FIXED FORGOT PASSWORD
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () {
-                          if (emailController.text.isEmpty) return;
-
+                          if (emailController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Please enter your email first"),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
                           context
                               .read<AuthCubit>()
-                              .forgotPassword(emailController.text);
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                AppTexts.get('forgot_pw', lang),
-                              ),
-                            ),
-                          );
+                              .forgotPassword(emailController.text.trim());
                         },
                         child: Text(
                           AppTexts.get('forgot_pw', lang),
@@ -199,7 +182,6 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 10),
 
-                    // Login Button
                     MyButton(
                       onTap: login,
                       text: AppTexts.get('login', lang),
@@ -207,7 +189,6 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 25),
 
-                    // Sign Up Link
                     GestureDetector(
                       onTap: widget.onTap,
                       child: Text(
@@ -221,7 +202,6 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 15),
 
-                    // Terms & Privacy Policy Links
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
                       child: RichText(
@@ -243,7 +223,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               recognizer: TapGestureRecognizer()
                                 ..onTap = () {
-                                  _launchUrl('https://dasvandh.github.io/terms/');
+                                  _launchUrl('https://connect-nri.github.io/terms/');
                                 },
                             ),
                             const TextSpan(text: ' and '),
@@ -255,7 +235,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               recognizer: TapGestureRecognizer()
                                 ..onTap = () {
-                                  _launchUrl('https://dasvandh.github.io/policy/');
+                                  _launchUrl('https://connect-nri.github.io/policy/');
                                 },
                             ),
                           ],

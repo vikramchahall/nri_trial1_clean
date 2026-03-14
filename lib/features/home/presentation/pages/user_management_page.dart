@@ -147,8 +147,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               CheckboxListTile(
-                title: const Text('Make Admin'),
-                subtitle: const Text('Can access special admin features'),
+                title: const Text('Make Pind Leader'),
+                subtitle: const Text('Features like black verification & asking for donations'),
                 value: makeAdmin,
                 onChanged: (val) => setState(() => makeAdmin = val ?? false),
               ),

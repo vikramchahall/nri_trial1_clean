@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nri_trial1_clean/utlis/date_formatter.dart';
 import 'package:nri_trial1_clean/components/square_media_box.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
-
 
 class OfficialFeed extends StatelessWidget {
   const OfficialFeed({super.key});
@@ -13,7 +11,6 @@ class OfficialFeed extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
-    // Get current user's isDC status
     final user = context.read<AuthCubit>().currentUser;
     final canDelete = user?.isDC ?? false;
 
@@ -28,14 +25,14 @@ class OfficialFeed extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-      final updates = snapshot.data!;
-if (updates.isEmpty) {
-  return Container(
-    height: 200,
-    alignment: Alignment.center,
-    child: const Text("No official updates yet."),
-  );
-        }  
+        final updates = snapshot.data!;
+        if (updates.isEmpty) {
+          return Container(
+            height: 200,
+            alignment: Alignment.center,
+            child: const Text("No official updates yet."),
+          );
+        }
 
         return ListView.builder(
           shrinkWrap: true,
@@ -44,13 +41,15 @@ if (updates.isEmpty) {
           itemCount: updates.length,
           itemBuilder: (_, index) {
             final data = updates[index];
+            final hasMedia = data['media_url'] != null &&
+                data['media_type'] != null;
 
             return Container(
               key: ValueKey(data['id']),
-              margin: const EdgeInsets.only(bottom: 12),
+              margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -59,13 +58,14 @@ if (updates.isEmpty) {
                   ),
                 ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(15),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    /// 🔹 TITLE ROW + DELETE BUTTON (only for DC users)
-                    Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  // ✅ TITLE + DELETE BUTTON AT TOP
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 6, 10),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
@@ -73,65 +73,77 @@ if (updates.isEmpty) {
                             data['title'] ?? '',
                             style: const TextStyle(
                               color: Colors.black87,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                               fontSize: 16,
                             ),
                           ),
                         ),
-                        // Only show delete button if user is DC
                         if (canDelete)
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            color: Colors.redAccent,
-                            onPressed: () async {
-                              final confirm =
-                                  await _confirmDelete(context);
-
-                              if (confirm) {
-                                await _deleteOfficialPost(data);
+                          PopupMenuButton<String>(
+                            icon: Icon(
+                              Icons.more_vert,
+                              color: Colors.grey.shade400,
+                              size: 20,
+                            ),
+                            onSelected: (value) async {
+                              if (value == 'delete') {
+                                final confirm = await _confirmDelete(context);
+                                if (confirm) await _deleteOfficialPost(data);
                               }
                             },
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.delete_outline,
+                                        color: Colors.red, size: 20),
+                                    SizedBox(width: 8),
+                                    Text("Delete",
+                                        style: TextStyle(color: Colors.red)),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                       ],
                     ),
+                  ),
 
-                    const SizedBox(height: 6),
-
-                    /// 🔹 MESSAGE
-                    Text(
-                      data['message'] ?? '',
-                      style: const TextStyle(
-                        color: Colors.black54,
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
+                  // ✅ MEDIA (full width, no side padding)
+                  if (hasMedia)
+                    SquareMediaBox(
+                      url: "${data['media_url']}?v=${data['timestamp']}",
+                      type: data['media_type'],
                     ),
 
-                    /// 🔹 MEDIA (IMAGE / VIDEO)
-                    if (data['media_url'] != null &&
-                        data['media_type'] != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: SquareMediaBox(
-                          // 🔥 cache busting
-                          url:
-                              "${data['media_url']}?v=${data['timestamp']}",
-                          type: data['media_type'], // image | video
+                  // ✅ MESSAGE + DATE BELOW
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if ((data['message'] ?? '').toString().isNotEmpty)
+                          Text(
+                            data['message'],
+                            style: const TextStyle(
+                              color: Colors.black54,
+                              fontSize: 14,
+                              height: 1.5,
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        Text(
+                          formatDate(data['timestamp']),
+                          style: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
-
-                    const SizedBox(height: 8),
-
-                    /// 🔹 DATE
-                    Text(
-                      formatDate(data['timestamp']),
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 11,
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
           },
@@ -141,15 +153,13 @@ if (updates.isEmpty) {
   }
 }
 
-/// ================= CONFIRM DIALOG =================
-
+// ================= CONFIRM DIALOG =================
 Future<bool> _confirmDelete(BuildContext context) async {
   return await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text("Delete post?"),
-          content:
-              const Text("This action cannot be undone."),
+          content: const Text("This action cannot be undone."),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -168,25 +178,19 @@ Future<bool> _confirmDelete(BuildContext context) async {
       false;
 }
 
-/// ================= DELETE LOGIC =================
-
+// ================= DELETE LOGIC =================
 Future<void> _deleteOfficialPost(Map<String, dynamic> data) async {
   final supabase = Supabase.instance.client;
 
-  /// 🧹 Delete media from storage
   if (data['media_url'] != null) {
     final uri = Uri.parse(data['media_url']);
     final path = uri.pathSegments
         .skipWhile((e) => e != 'official_media')
         .skip(1)
         .join('/');
-
-    await supabase.storage
-        .from('official_media')
-        .remove([path]);
+    await supabase.storage.from('official_media').remove([path]);
   }
 
-  /// 🗑️ Delete DB row
   await supabase
       .from('official_updates')
       .delete()

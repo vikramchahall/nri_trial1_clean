@@ -11,11 +11,26 @@ import 'follower_list_page.dart';
 import '../../../crowdfunding/domain/entities/crowd_post.dart';
 import '../../../crowdfunding/presentation/pages/post_detail_page.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
+
 import '../cubits/profile_cubit.dart';
 
 class ProfilePageContent extends StatelessWidget {
   final ProfileUser user;
   const ProfilePageContent({super.key, required this.user});
+
+  Widget _buildPlaceholder() {
+  return Container(
+    height: 90,
+    width: 90,
+    color: Colors.grey.shade200,
+    child: const Icon(
+      Icons.person,
+      size: 40,
+      color: Colors.grey,
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -42,19 +57,15 @@ class ProfilePageContent extends StatelessWidget {
               }
 
               return ClipOval(
-                child: Image.network(
-                  imageVersion > 0 ? "$imageUrl?v=$imageVersion" : imageUrl,
-                  height: 90,
-                  width: 90,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 90,
-                    width: 90,
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.person, size: 40, color: Colors.grey),
-                  ),
-                ),
-              );
+  child: CachedNetworkImage(
+    imageUrl: imageVersion > 0 ? "$imageUrl?v=$imageVersion" : imageUrl,
+    height: 90,
+    width: 90,
+    fit: BoxFit.cover,
+    placeholder: (context, url) => _buildPlaceholder(),
+    errorWidget: (context, url, error) => _buildPlaceholder(),
+  ),
+);
             },
           ),
         ),
@@ -128,7 +139,7 @@ class ProfilePageContent extends StatelessWidget {
         const Divider(height: 40),
 
         const Text(
-          "Village Causes & History",
+          "History",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
 

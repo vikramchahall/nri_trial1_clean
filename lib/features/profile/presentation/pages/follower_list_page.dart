@@ -72,7 +72,7 @@ class FollowerListPage extends StatelessWidget {
                       ),
                       title: Row(
                         children: [
-                          Text("@${user['username']}"),
+                          Text("${user['username']}"),
                           const SizedBox(width: 4),
                           if (isDC || isAdmin)
                             VerificationBadge(

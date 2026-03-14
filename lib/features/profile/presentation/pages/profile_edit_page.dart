@@ -8,6 +8,8 @@ import '../cubits/profile_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 import 'package:nri_trial1_clean/features/profile/domain/entities/profile_user.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
+
 class ProfileEditPage extends StatefulWidget {
   final ProfileUser user;
   const ProfileEditPage({super.key, required this.user});
@@ -140,17 +142,27 @@ Future<void> save() async {
                                 fit: BoxFit.cover,
                               )
                             : (widget.user.profileImageUrl.isNotEmpty
-                                ? Image.network(
-                                    widget.user.imageVersion > 0
-                                        ? "${widget.user.profileImageUrl}?v=${widget.user.imageVersion}"
-                                        : widget.user.profileImageUrl,
-                                    fit: BoxFit.cover,
-                                  )
-                                : const Icon(
-                                    Icons.person,
-                                    size: 60,
-                                    color: Colors.grey,
-                                  )),
+    ? CachedNetworkImage(
+        imageUrl: widget.user.imageVersion > 0
+            ? "${widget.user.profileImageUrl}?v=${widget.user.imageVersion}"
+            : widget.user.profileImageUrl,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => const Icon(
+          Icons.person,
+          size: 60,
+          color: Colors.grey,
+        ),
+        errorWidget: (context, url, error) => const Icon(
+          Icons.person,
+          size: 60,
+          color: Colors.grey,
+        ),
+      )
+    : const Icon(
+        Icons.person,
+        size: 60,
+        color: Colors.grey,
+      ))
                       ),
                     ),
                     Positioned(

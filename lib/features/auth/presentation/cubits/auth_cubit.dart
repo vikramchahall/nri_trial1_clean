@@ -4,13 +4,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nri_trial1_clean/features/auth/domain/entities/app_user.dart';
 import 'package:nri_trial1_clean/features/auth/domain/repos/auth_repo.dart';
 import 'package:nri_trial1_clean/features/auth/presentation/cubits/auth_states.dart';
-import 'package:nri_trial1_clean/core/services/fcm_service.dart'; // ⬅️ ADD THIS
+import 'package:nri_trial1_clean/core/services/fcm_service.dart';
 
 class AuthCubit extends Cubit<AuthState> {
   final AuthRepo authRepo;
   AppUser? _currentUser;
 
-  // 🔑 Variables to remember for LOGIN AUTO-FILL
   String? prefillEmail;
   String? prefillPassword;
 
@@ -26,10 +25,7 @@ class AuthCubit extends Cubit<AuthState> {
       final user = await authRepo.getCurrentUser();
       if (user != null) {
         _currentUser = user;
-        
-        // ⬅️ Initialize FCM if already logged in
         await FCMService.initialize();
-        
         emit(Authenticated(user));
       } else {
         emit(Unauthenticated());
@@ -46,8 +42,7 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       emit(AuthLoading());
 
-      final user =
-          await authRepo.loginWithEmailPassword(email, password);
+      final user = await authRepo.loginWithEmailPassword(email, password);
 
       if (user == null) {
         emit(Unauthenticated());
@@ -55,14 +50,10 @@ class AuthCubit extends Cubit<AuthState> {
       }
 
       _currentUser = user;
-
-      // Clear auto-fill after successful login
       prefillEmail = null;
       prefillPassword = null;
 
-      // ⬅️ Initialize FCM after successful login
       await FCMService.initialize();
-
       emit(Authenticated(user));
     } catch (e) {
       emit(AuthError(e.toString()));
@@ -70,7 +61,7 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   // ==================================================
-  // REGISTER → SAVE FOR AUTO-FILL (NO AUTO LOGIN)
+  // REGISTER
   // ==================================================
   Future<void> registerUser({
     required String email,
@@ -98,31 +89,34 @@ class AuthCubit extends Cubit<AuthState> {
         panchayatId: panchayatId,
       );
 
-      // 💾 SAVE FOR LOGIN AUTO-FILL
       prefillEmail = email;
       prefillPassword = password;
-
       emit(NeedVerification(email: email, password: password));
 
     } catch (e) {
       final errorMsg = e.toString().toLowerCase();
-      
-      // 🔹 Check if email already exists
-      if (errorMsg.contains('already registered') || 
+
+      // ✅ Unverified email — resend and go to verification page
+      if (e.toString().contains('__UNVERIFIED__')) {
+        prefillEmail = email;
+        prefillPassword = password;
+        emit(NeedVerification(email: email, password: password));
+        return;
+      }
+
+      if (errorMsg.contains('already registered') ||
           errorMsg.contains('user already registered')) {
         emit(AuthError(
           "This email is already registered.\n"
-    
-          "Use 'Forgot Password' to recover your account."
+          "Use 'Forgot Password' to recover your account.",
         ));
-      } else if (errorMsg.contains('email not confirmed') || 
+      } else if (errorMsg.contains('email not confirmed') ||
                  errorMsg.contains('email unconfirmed')) {
         emit(AuthError(
           "Email already registered but not verified.\n"
-          "Check your inbox/spam for verification link."
+          "Check your inbox/spam for verification link.",
         ));
       } else {
-        // Remove "Exception: " prefix if present
         emit(AuthError(e.toString().replaceAll("Exception: ", "")));
       }
     }
@@ -133,15 +127,11 @@ class AuthCubit extends Cubit<AuthState> {
   // ==================================================
   Future<void> resendVerification(String email) async {
     try {
-      emit(AuthLoading());
-      
       await authRepo.resendVerificationEmail(email);
-      
       emit(NeedVerification(email: email, password: prefillPassword));
-      emit(AuthError("Verification email resent! Check your inbox/spam."));
-      
     } catch (e) {
-      emit(AuthError("Could not resend email: ${e.toString()}"));
+      emit(NeedVerification(email: email, password: prefillPassword));
+      emit(AuthError("Could not resend email. Try again in 60 seconds."));
     }
   }
 
@@ -156,21 +146,11 @@ class AuthCubit extends Cubit<AuthState> {
         emit(Unauthenticated());
         emit(AuthError("Email verified! You can now login."));
       } else {
-        emit(
-          NeedVerification(
-            email: email,
-            password: prefillPassword,
-          ),
-        );
+        emit(NeedVerification(email: email, password: prefillPassword));
         emit(AuthError("Check Gmail! Link not clicked yet."));
       }
     } catch (_) {
-      emit(
-        NeedVerification(
-          email: email,
-          password: prefillPassword,
-        ),
-      );
+      emit(NeedVerification(email: email, password: prefillPassword));
       emit(AuthError("System busy. Try again."));
     }
   }
@@ -193,11 +173,8 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       emit(AuthLoading());
       await authRepo.updatePassword(newPassword);
-
       emit(Unauthenticated());
-      emit(AuthError(
-        "Password updated! Please login with your new password.",
-      ));
+      emit(AuthError("Password updated! Please login with your new password."));
     } catch (e) {
       emit(AuthError(e.toString()));
     }
@@ -213,9 +190,7 @@ class AuthCubit extends Cubit<AuthState> {
       emit(ResetPasswordOtpMode(email.trim()));
     } catch (e) {
       emit(Unauthenticated());
-      emit(AuthError(
-        "User not found or limit exceeded: ${e.toString()}",
-      ));
+      emit(AuthError("User not found or limit exceeded: ${e.toString()}"));
     }
   }
 
@@ -245,15 +220,13 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   // ==================================================
-  // 🔄 REFRESH CURRENT USER (FOLLOW / UNFOLLOW FIX)
+  // 🔄 REFRESH CURRENT USER
   // ==================================================
   Future<void> refreshCurrentUser() async {
     try {
       final user = await authRepo.getCurrentUser();
       if (user != null) {
         _currentUser = user;
-
-        // 🔥 THIS IS THE MAGIC LINE
         emit(Authenticated(user));
       }
     } catch (e) {
@@ -274,24 +247,16 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> deleteAccount(String password) async {
     try {
       emit(AuthLoading());
-      
-      // ⬅️ Remove FCM token before deleting account
       await FCMService.removeToken();
-      
       await authRepo.deleteAccount(password);
-      
-      // Clear current user and emit unauthenticated state
       _currentUser = null;
       emit(Unauthenticated());
     } catch (e) {
-      // Re-emit the current authenticated state if deletion fails
       if (_currentUser != null) {
         emit(Authenticated(_currentUser!));
       } else {
         emit(Unauthenticated());
       }
-      
-      // Re-throw the error so the UI can handle it
       rethrow;
     }
   }
@@ -300,9 +265,7 @@ class AuthCubit extends Cubit<AuthState> {
   // LOGOUT
   // ==================================================
   Future<void> logout() async {
-    // ⬅️ Remove FCM token before logout
     await FCMService.removeToken();
-    
     await authRepo.logout();
     _currentUser = null;
     emit(Unauthenticated());

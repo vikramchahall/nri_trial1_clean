@@ -1,27 +1,96 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../cubits/auth_cubit.dart';
 import '../../../../components/my_button.dart';
 
-class VerificationPage extends StatelessWidget {
+class VerificationPage extends StatefulWidget {
   final String email;
-  final String? password; // Optional: if you pass it from registration
-  
+  final String? password;
+
   const VerificationPage({
-    super.key, 
+    super.key,
     required this.email,
     this.password,
   });
 
   @override
+  State<VerificationPage> createState() => _VerificationPageState();
+}
+
+class _VerificationPageState extends State<VerificationPage> {
+  int _secondsLeft = 60;
+  bool _canResend = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCooldown();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startCooldown() {
+    setState(() {
+      _secondsLeft = 60;
+      _canResend = false;
+    });
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        if (_secondsLeft > 0) {
+          _secondsLeft--;
+        } else {
+          _canResend = true;
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  Future<void> _openGmail() async {
+    final Uri gmailAppUri = Uri.parse('intent://mail.google.com/#Intent;scheme=https;package=com.google.android.gm;end');
+    final Uri gmailDirectUri = Uri.parse('googlegmail://');
+    final Uri gmailWebUri = Uri.parse('https://mail.google.com');
+
+    if (await canLaunchUrl(gmailDirectUri)) {
+      await launchUrl(gmailDirectUri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    if (await canLaunchUrl(gmailAppUri)) {
+      await launchUrl(gmailAppUri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    await launchUrl(gmailWebUri, mode: LaunchMode.externalApplication);
+  }
+
+  void _resendEmail() {
+    if (!_canResend) return;
+    context.read<AuthCubit>().resendVerification(widget.email);
+    _startCooldown();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(25.0),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(25, 25, 25, 25 + bottomPadding),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const SizedBox(height: 60),
               const Icon(
                 Icons.mark_email_unread_outlined,
                 size: 80,
@@ -34,22 +103,49 @@ class VerificationPage extends StatelessWidget {
               ),
               const SizedBox(height: 15),
               Text(
-                "We have sent a verification link to:\n$email",
+                "We have sent a verification link to:\n${widget.email}",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey.shade600),
               ),
               const SizedBox(height: 30),
 
-              // ✅ AUTO-LOGIN BUTTON
+              // OPEN GMAIL BUTTON
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _openGmail,
+                  icon: const Icon(Icons.mail, color: Colors.white, size: 22),
+                  label: const Text(
+                    "Open Gmail",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA4335),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 3,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // I HAVE VERIFIED BUTTON
               MyButton(
                 onTap: () async {
-                  if (password != null) {
-                    // If we have the password, auto-login directly
-                    await context.read<AuthCubit>().login(email, password!);
+                  if (widget.password != null) {
+                    await context
+                        .read<AuthCubit>()
+                        .login(widget.email, widget.password!);
                   } else {
-                    // Otherwise, just go back to login page (pre-filled)
-                    context.read<AuthCubit>().logout();
-                    
+                    context.read<AuthCubit>().goToLogin();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
@@ -67,27 +163,31 @@ class VerificationPage extends StatelessWidget {
 
               const SizedBox(height: 15),
 
-              // RESEND BUTTON
-              TextButton(
-                onPressed: () {
-                  context.read<AuthCubit>().authRepo.sendEmailVerification();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Verification link re-sent!"),
+              // RESEND BUTTON WITH 60s COOLDOWN
+              _canResend
+                  ? TextButton(
+                      onPressed: _resendEmail,
+                      child: const Text(
+                        "Resend Link",
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : Text(
+                      "Resend available in $_secondsLeft seconds",
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 13,
+                      ),
                     ),
-                  );
-                },
-                child: const Text(
-                  "Resend Link",
-                  style: TextStyle(color: Colors.green),
-                ),
-              ),
 
               const SizedBox(height: 10),
 
               // BACK TO LOGIN
               TextButton(
-                onPressed: () => context.read<AuthCubit>().logout(),
+                onPressed: () => context.read<AuthCubit>().goToLogin(),
                 child: const Text(
                   "Back to Login",
                   style: TextStyle(color: Colors.red),

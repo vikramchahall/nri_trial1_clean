@@ -31,6 +31,14 @@ class CrowdCubit extends Cubit<CrowdState> {
   }
 
   // ===============================
+  // 🔍 GET SINGLE POST (fresh)
+  // ===============================
+  Future<CrowdPost> getPostById(String postId) async {
+    final posts = await crowdRepo.fetchAllPosts();
+    return posts.firstWhere((p) => p.id == postId);
+  }
+
+  // ===============================
   // 🆕 CREATE POST
   // ===============================
   Future<void> createCrowdPost({
@@ -40,7 +48,7 @@ class CrowdCubit extends Cubit<CrowdState> {
     required String uId,
     required String uName,
     required String customFileName,
-    required String phoneNumber, // ✅ NEW
+    required String phoneNumber,
   }) async {
     try {
       emit(CrowdUploading());
@@ -73,12 +81,11 @@ class CrowdCubit extends Cubit<CrowdState> {
         raisedAmount: 0,
         likes: [],
         commentCount: 0,
-        phoneNumber: phoneNumber, // ✅ NEW
+        phoneNumber: phoneNumber,
       );
 
       debugPrint("📱 Phone being saved: '${post.phoneNumber}'");
       debugPrint("📦 Full post JSON: ${post.toJson()}");
-      
 
       await crowdRepo.createPost(post);
       await fetchAllCrowds();
@@ -148,7 +155,7 @@ class CrowdCubit extends Cubit<CrowdState> {
       raisedAmount: post.raisedAmount,
       likes: updatedLikes,
       commentCount: post.commentCount,
-      phoneNumber: post.phoneNumber, // ✅ PRESERVED
+      phoneNumber: post.phoneNumber,
     );
 
     posts[index] = updatedPost;

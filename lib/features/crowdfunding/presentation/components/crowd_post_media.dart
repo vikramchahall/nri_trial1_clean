@@ -5,6 +5,7 @@ import '../../domain/entities/crowd_post.dart';
 import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 import '../../../../components/my_video_player.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class CrowdPostMedia extends StatefulWidget {
   final CrowdPost post;
@@ -88,10 +89,16 @@ class _CrowdPostMediaState extends State<CrowdPostMedia>
             aspectRatio: 1,
             child: isVideo
                 ? MyVideoPlayer(videoUrl: mediaUrl)
-                : Image.network(
-                    mediaUrl,
-                    fit: BoxFit.cover,
-                  ),
+: CachedNetworkImage(
+    imageUrl: mediaUrl,
+    fit: BoxFit.cover,
+    placeholder: (context, url) => Container(
+      color: Colors.grey[200],
+    ),
+    errorWidget: (context, url, error) => const Icon(
+      Icons.broken_image,
+    ),
+  ),
           ),
 
           // ❤️ HEART OVERLAY

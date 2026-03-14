@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class MyMediaGridTile extends StatefulWidget {
   final String url;
@@ -49,16 +50,19 @@ class _MyMediaGridTileState extends State<MyMediaGridTile> with AutomaticKeepAli
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAlive
 
-    if (!isVideo) {
-      return Image.network(
-        widget.url,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          color: Colors.grey[200],
-          child: const Icon(Icons.broken_image, color: Colors.grey),
-        ),
-      );
-    }
+if (!isVideo) {
+  return CachedNetworkImage(
+    imageUrl: widget.url,
+    fit: BoxFit.cover,
+    placeholder: (context, url) => Container(
+      color: Colors.grey[200],
+    ),
+    errorWidget: (context, url, error) => Container(
+      color: Colors.grey[200],
+      child: const Icon(Icons.broken_image, color: Colors.grey),
+    ),
+  );
+}
 
     // Video Preview logic
     return Stack(
