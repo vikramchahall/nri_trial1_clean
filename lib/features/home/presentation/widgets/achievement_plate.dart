@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:nri_trial1_clean/utlis/media_url.dart';
 
 /// Widget that displays achievements in an Instagram-style grid
 class AchievementPlate extends StatelessWidget {
@@ -105,7 +106,7 @@ class AchievementPlate extends StatelessWidget {
                       // Background Image
                       if (imageUrl != null)
 CachedNetworkImage(
-  imageUrl: imageUrl,
+  imageUrl: MediaUrl.convert(imageUrl ?? ''),
   fit: BoxFit.cover,
   placeholder: (context, url) => Container(
     color: Colors.grey.shade200,
@@ -330,7 +331,7 @@ class AchievementDetailPage extends StatelessWidget {
                           fit: StackFit.expand,
                           children: [
 CachedNetworkImage(
-  imageUrl: imageUrl,
+  imageUrl: MediaUrl.convert(imageUrl ?? ''),
   fit: BoxFit.cover,
   placeholder: (context, url) => Container(
     color: Colors.grey.shade200,

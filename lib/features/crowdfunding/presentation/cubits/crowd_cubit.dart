@@ -31,7 +31,7 @@ class CrowdCubit extends Cubit<CrowdState> {
   }
 
   // ===============================
-  // 🔍 GET SINGLE POST (fresh)
+  // 🔍 GET SINGLE POST
   // ===============================
   Future<CrowdPost> getPostById(String postId) async {
     final posts = await crowdRepo.fetchAllPosts();
@@ -113,12 +113,52 @@ class CrowdCubit extends Cubit<CrowdState> {
   Future<void> addComment(String postId, Comment comment) async {
     try {
       await crowdRepo.addComment(postId, comment);
+
+      // ✅ Optimistic local increment
+      if (state is CrowdLoaded) {
+        final updatedPosts = (state as CrowdLoaded).crowds.map((post) {
+          if (post.id == postId) {
+            return post.copyWith(commentCount: post.commentCount + 1);
+          }
+          return post;
+        }).toList();
+        emit(CrowdLoaded(updatedPosts));
+      }
     } catch (_) {}
   }
 
   Future<void> deleteComment(String postId, String commentId) async {
     try {
       await crowdRepo.deleteComment(postId, commentId);
+
+      // ✅ Optimistic local decrement
+      if (state is CrowdLoaded) {
+        final updatedPosts = (state as CrowdLoaded).crowds.map((post) {
+          if (post.id == postId) {
+            return post.copyWith(
+              commentCount: (post.commentCount - 1).clamp(0, 999999),
+            );
+          }
+          return post;
+        }).toList();
+        emit(CrowdLoaded(updatedPosts));
+      }
+    } catch (_) {}
+  }
+
+  // ✅ Sync real count from DB — called when comment sheet closes
+  Future<void> syncCommentCount(String postId) async {
+    try {
+      final realCount = await crowdRepo.getCommentCount(postId);
+      if (state is CrowdLoaded) {
+        final updatedPosts = (state as CrowdLoaded).crowds.map((post) {
+          if (post.id == postId) {
+            return post.copyWith(commentCount: realCount);
+          }
+          return post;
+        }).toList();
+        emit(CrowdLoaded(updatedPosts));
+      }
     } catch (_) {}
   }
 
@@ -130,41 +170,27 @@ class CrowdCubit extends Cubit<CrowdState> {
 
     final currentState = state as CrowdLoaded;
     final posts = List<CrowdPost>.from(currentState.crowds);
-
     final index = posts.indexWhere((p) => p.id == postId);
     if (index == -1) return;
 
     final post = posts[index];
     final isLiked = post.likes.contains(userId);
-
     final updatedLikes = List<String>.from(post.likes);
+
     if (isLiked) {
       updatedLikes.remove(userId);
     } else {
       updatedLikes.add(userId);
     }
 
-    final updatedPost = CrowdPost(
-      id: post.id,
-      userId: post.userId,
-      userName: post.userName,
-      text: post.text,
-      imageUrl: post.imageUrl,
-      timestamp: post.timestamp,
-      targetAmount: post.targetAmount,
-      raisedAmount: post.raisedAmount,
-      likes: updatedLikes,
-      commentCount: post.commentCount,
-      phoneNumber: post.phoneNumber,
-    );
-
-    posts[index] = updatedPost;
+    posts[index] = post.copyWith(likes: updatedLikes);
     emit(CrowdLoaded(posts));
 
     try {
       await crowdRepo.toggleLikePost(postId, userId);
     } catch (_) {
-      // optional rollback ignored
+      posts[index] = post;
+      emit(CrowdLoaded(posts));
     }
   }
 }

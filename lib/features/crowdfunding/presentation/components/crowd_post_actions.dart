@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/crowd_post.dart';
 import '../cubits/crowd_cubit.dart';
@@ -31,7 +30,6 @@ class CrowdPostActions extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🔹 LEFT SIDE
           Expanded(
             child: Wrap(
               spacing: 10,
@@ -70,7 +68,7 @@ class CrowdPostActions extends StatelessWidget {
                   ),
                 ),
 
-                // 💬 COMMENTS + COUNT
+                // 💬 COMMENTS — ✅ uses post.commentCount,
                 InkWell(
                   onTap: () => showCommentSheet(context, post),
                   borderRadius: BorderRadius.circular(20),
@@ -79,28 +77,18 @@ class CrowdPostActions extends StatelessWidget {
                     children: [
                       const Icon(Icons.chat_bubble_outline, size: 20),
                       const SizedBox(width: 6),
-                      StreamBuilder<List<Map<String, dynamic>>>(
-                        stream: Supabase.instance.client
-                            .from('comments')
-                            .stream(primaryKey: ['id'])
-                            .eq('post_id', post.id),
-                        builder: (_, snapshot) {
-                          final count =
-                              snapshot.hasData ? snapshot.data!.length : 0;
-                          return Text(
-                            "$count",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          );
-                        },
+                      Text(
+                        "${post.commentCount}",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
                 ),
 
-                // ✅ SHARE ICON — right after comments
+                // 📤 SHARE
                 InkWell(
                   onTap: _sharePost,
                   borderRadius: BorderRadius.circular(20),

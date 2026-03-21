@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:nri_trial1_clean/utlis/media_url.dart';
+
 class MyVideoPlayer extends StatefulWidget {
   final String videoUrl;
   const MyVideoPlayer({super.key, required this.videoUrl});
@@ -18,7 +20,7 @@ class _MyVideoPlayerState extends State<MyVideoPlayer> {
     super.initState();
 
     _controller = VideoPlayerController.networkUrl(
-      Uri.parse(widget.videoUrl),
+      Uri.parse(MediaUrl.convert(widget.videoUrl)),
     )
       ..initialize().then((_) {
         if (!mounted) return;

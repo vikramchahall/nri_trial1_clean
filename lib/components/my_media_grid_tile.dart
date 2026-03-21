@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import 'package:nri_trial1_clean/utlis/media_url.dart';
+
 class MyMediaGridTile extends StatefulWidget {
   final String url;
   const MyMediaGridTile({super.key, required this.url});
@@ -27,7 +29,7 @@ class _MyMediaGridTileState extends State<MyMediaGridTile> with AutomaticKeepAli
     isVideo = path.contains(".mp4") || path.contains(".mov") || path.contains(".m4v");
 
     if (isVideo) {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+      _controller = VideoPlayerController.networkUrl(Uri.parse(MediaUrl.convert(widget.url)))
         ..initialize().then((_) {
           // Seek to 1 second to get a good preview frame
           _controller!.seekTo(const Duration(seconds: 1));
@@ -52,7 +54,7 @@ class _MyMediaGridTileState extends State<MyMediaGridTile> with AutomaticKeepAli
 
 if (!isVideo) {
   return CachedNetworkImage(
-    imageUrl: widget.url,
+    imageUrl: MediaUrl.convert(widget.url),
     fit: BoxFit.cover,
     placeholder: (context, url) => Container(
       color: Colors.grey[200],

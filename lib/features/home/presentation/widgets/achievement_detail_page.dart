@@ -5,6 +5,7 @@ import '../../../auth/presentation/cubits/auth_cubit.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 
+import 'package:nri_trial1_clean/utlis/media_url.dart';
 
 
 class AchievementDetailPage extends StatelessWidget {
@@ -225,7 +226,7 @@ actions: canDelete ? [
                           fit: StackFit.expand,
                           children: [
                             CachedNetworkImage(
-  imageUrl: imageUrl,
+  imageUrl: MediaUrl.convert(imageUrl ?? ''),
   fit: BoxFit.cover,
   placeholder: (context, url) => Container(
     color: Colors.grey.shade200,

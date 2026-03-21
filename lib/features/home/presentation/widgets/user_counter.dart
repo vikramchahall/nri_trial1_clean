@@ -7,6 +7,8 @@ import 'package:nri_trial1_clean/features/crowdfunding/presentation/pages/post_d
 import 'package:nri_trial1_clean/features/crowdfunding/domain/entities/crowd_post.dart';
 import 'package:nri_trial1_clean/features/crowdfunding/presentation/cubits/crowd_cubit.dart';
 
+import 'package:nri_trial1_clean/utlis/media_url.dart';
+
 class UserCounter extends StatelessWidget {
   const UserCounter({super.key});
 
@@ -331,7 +333,8 @@ class _SpotlightRow extends StatelessWidget {
             radius: 22,
             backgroundColor: Colors.grey.shade100,
             backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
-                ? CachedNetworkImageProvider(avatarUrl!)
+    ? CachedNetworkImageProvider(MediaUrl.convert(avatarUrl!))
+
                 : null,
             child: (avatarUrl == null || avatarUrl!.isEmpty)
                 ? const Icon(Icons.person, color: Colors.grey, size: 20)

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:nri_trial1_clean/utlis/media_url.dart';
+
 class SquareMediaBox extends StatefulWidget {
   final String url;
   final String type;
@@ -19,7 +21,8 @@ class _SquareMediaBoxState extends State<SquareMediaBox> {
   void initState() {
     super.initState();
     if (widget.type == 'video') {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+      _controller = VideoPlayerController.networkUrl(Uri.parse(MediaUrl.convert(widget.url)))
+
         ..initialize().then((_) {
           if (mounted) setState(() {});
         });
@@ -43,8 +46,8 @@ class _SquareMediaBoxState extends State<SquareMediaBox> {
   Widget _buildImage() {
     return AspectRatio(
       aspectRatio: 1,
-      child: CachedNetworkImage(
-        imageUrl: widget.url,
+      child: CachedNetworkImage(  
+        imageUrl: MediaUrl.convert(widget.url),
         fit: BoxFit.cover,
         placeholder: (context, url) => Container(
           color: Colors.grey.shade200,
