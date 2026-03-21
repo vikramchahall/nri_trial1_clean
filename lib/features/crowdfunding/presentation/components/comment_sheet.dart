@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:nri_trial1_clean/features/profile/presentation/pages/user_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:nri_trial1_clean/utlis/media_url.dart';
+import 'package:nri_trial1_clean/features/profile/presentation/pages/user_profile_page.dart';
 import 'package:nri_trial1_clean/features/crowdfunding/presentation/components/verification_badge.dart';
-
 
 import '../../domain/entities/crowd_post.dart';
 import '../../domain/entities/comment.dart';
@@ -33,12 +34,14 @@ void showCommentSheet(BuildContext context, CrowdPost post) {
         ),
       );
     },
-  );
+  ).whenComplete(() {
+    // ✅ Sync real count when sheet closes — fixes stale count
+    crowdCubit.syncCommentCount(post.id);
+  });
 }
 
 class _CommentSheet extends StatefulWidget {
   final CrowdPost post;
-
   const _CommentSheet({required this.post});
 
   @override
@@ -47,22 +50,44 @@ class _CommentSheet extends StatefulWidget {
 
 class _CommentSheetState extends State<_CommentSheet> {
   final TextEditingController _controller = TextEditingController();
-  
-  void _addComment() {
+  List<Map<String, dynamic>>? _comments;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadComments(); // ✅ load once
+  }
+
+  Future<void> _loadComments() async {
+    final data = await Supabase.instance.client
+        .from('comments')
+        .select()
+        .eq('post_id', widget.post.id)
+        .order('timestamp', ascending: false);
+
+    if (mounted) {
+      setState(() => _comments = List<Map<String, dynamic>>.from(data));
+    }
+  }
+
+  void _addComment() async {
     final user = context.read<AuthCubit>().currentUser;
     if (user == null || _controller.text.trim().isEmpty) return;
+
+    final text = _controller.text.trim();
+    _controller.clear();
 
     final comment = Comment(
       id: '',
       postId: widget.post.id,
       userId: user.uid,
       userName: user.username,
-      text: _controller.text.trim(),
+      text: text,
       timestamp: DateTime.now(),
     );
 
-    context.read<CrowdCubit>().addComment(widget.post.id, comment);
-    _controller.clear();
+    await context.read<CrowdCubit>().addComment(widget.post.id, comment);
+    _loadComments(); // ✅ refresh after adding
   }
 
   @override
@@ -85,118 +110,86 @@ class _CommentSheetState extends State<_CommentSheet> {
             const Divider(height: 12),
 
             Flexible(
-              child: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: Supabase.instance.client
-                    .from('comments')
-                    .stream(primaryKey: ['id'])
-                    .eq('post_id', widget.post.id)
-                    .order('timestamp', ascending: false),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
-                  }
+              child: _comments == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : _comments!.isEmpty
+                      ? const Center(child: Text("No comments yet."))
+                      : ListView.builder(
+                          controller: scrollController,
+                          itemCount: _comments!.length,
+                          itemBuilder: (context, index) {
+                            final data = _comments![index];
+                            final commentUserId = data['user_id'] ?? '';
+                            final canDelete = currentUser != null &&
+                                (currentUser.uid == commentUserId ||
+                                    currentUser.uid == widget.post.userId);
 
-                  final comments = snapshot.data!;
-                  if (comments.isEmpty) {
-                    return const Center(child: Text("No comments yet."));
-                  }
-
-                  return ListView.builder(
-                    controller: scrollController,
-                    itemCount: comments.length,
-                    itemBuilder: (context, index) {
-                      final data = comments[index];
-                      final commentUserId = data['user_id'] ?? '';
-
-                      final canDelete = currentUser != null &&
-                          (currentUser.uid == commentUserId ||
-                              currentUser.uid == widget.post.userId);
-
-                      return ListTile(
-                        leading: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => UserProfilePage(uid: commentUserId),
-                              ),
-                            );
-                          },
-                          child: _ProfileAvatar(userId: commentUserId),
-                        ),
-                        title: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => UserProfilePage(uid: commentUserId),
-                              ),
-                            );
-                          },
-                          child: _UserNameWithBadge(
-                            userId: commentUserId,
-                            userName: data['user_name'],
-                          ),
-                        ),
-                        subtitle: Text(data['text'] ?? ''),
-                        trailing: canDelete
-                            ? IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  size: 18,
+                            return ListTile(
+                              leading: GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => UserProfilePage(uid: commentUserId),
+                                  ),
                                 ),
-                                onPressed: () async {
-                                  final confirm = await showDialog<bool>(
-                                    context: context,
-                                    builder: (_) => AlertDialog(
-                                      title: const Text("Delete comment?"),
-                                      content: const Text(
-                                        "This action cannot be undone.\nAre you sure?",
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context, false),
-                                          child: const Text("Cancel"),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context, true),
-                                          style: TextButton.styleFrom(
-                                            foregroundColor: Colors.red,
+                                child: _ProfileAvatar(userId: commentUserId),
+                              ),
+                              title: GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => UserProfilePage(uid: commentUserId),
+                                  ),
+                                ),
+                                child: Text(
+                                  "@${data['user_name'] ?? 'unknown'}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              subtitle: Text(data['text'] ?? ''),
+                              trailing: canDelete
+                                  ? IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 18),
+                                      onPressed: () async {
+                                        final confirm = await showDialog<bool>(
+                                          context: context,
+                                          builder: (_) => AlertDialog(
+                                            title: const Text("Delete comment?"),
+                                            content: const Text("This action cannot be undone."),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(context, false),
+                                                child: const Text("Cancel"),
+                                              ),
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(context, true),
+                                                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                                child: const Text("Delete"),
+                                              ),
+                                            ],
                                           ),
-                                          child: const Text("Delete"),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-
-                                  if (confirm != true) return;
-
-                                  context.read<CrowdCubit>().deleteComment(
-                                        widget.post.id,
-                                        data['id'].toString(),
-                                      );
-
-                                  setState(() {
-                                  });
-                                },
-                              )
-                            : null,
-                      );
-                    },
-                  );
-                },
-              ),
+                                        );
+                                        if (confirm != true) return;
+                                        await context.read<CrowdCubit>().deleteComment(
+                                          widget.post.id,
+                                          data['id'].toString(),
+                                        );
+                                        _loadComments(); // ✅ refresh after delete
+                                      },
+                                    )
+                                  : null,
+                            );
+                          },
+                        ),
             ),
 
             SafeArea(
               top: false,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(
                   children: [
                     Expanded(
@@ -227,103 +220,51 @@ class _CommentSheetState extends State<_CommentSheet> {
   }
 }
 
-/// 👤 PROFILE AVATAR WITH BADGE
+// ✅ No StreamBuilder — fetch once with FutureBuilder
 class _ProfileAvatar extends StatelessWidget {
   final String userId;
-
   const _ProfileAvatar({required this.userId});
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: Supabase.instance.client
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: Supabase.instance.client
           .from('profiles')
-          .stream(primaryKey: ['id'])
+          .select('profile_image_url, image_version, is_dc, is_admin')
           .eq('id', userId),
       builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          final user = snapshot.data!.first;
-          final String? url = user['profile_image_url'];
-          final int? version = user['image_version'];
-          final bool isDC = user['is_dc'] == true;
-          final bool isAdmin = user['is_admin'] == true;
-
-          return Stack(
-            children: [
-              CircleAvatar(
-                radius: 15,
-                backgroundColor: Colors.grey[200],
-                backgroundImage: (url != null && url.isNotEmpty)
-                    ? NetworkImage(
-                        version != null && version > 0 ? "$url?v=$version" : url)
-                    : null,
-                child: (url == null || url.isEmpty)
-                    ? const Icon(Icons.person, color: Colors.grey, size: 15)
-                    : null,
-              ),
-              if (isDC || isAdmin)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: VerificationBadge(
-                    isDC: isDC,
-                    isAdmin: isAdmin,
-                    size: 14,
-                  ),
-                ),
-            ],
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const CircleAvatar(
+            radius: 15,
+            child: Icon(Icons.person, size: 15),
           );
         }
 
-        return const CircleAvatar(
-          radius: 15,
-          child: Icon(Icons.person, size: 15),
-        );
-      },
-    );
-  }
-}
+        final user = snapshot.data!.first;
+        final String? url = user['profile_image_url'];
+        final int? version = user['image_version'];
+        final bool isDC = user['is_dc'] == true;
+        final bool isAdmin = user['is_admin'] == true;
+        final imageUrl = url != null && url.isNotEmpty
+            ? (version != null && version > 0
+                ? "${MediaUrl.convert(url)}?v=$version"
+                : MediaUrl.convert(url))
+            : null;
 
-/// USERNAME WITH BADGE
-class _UserNameWithBadge extends StatelessWidget {
-  final String userId;
-  final String userName;
-
-  const _UserNameWithBadge({required this.userId, required this.userName});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: Supabase.instance.client
-          .from('profiles')
-          .stream(primaryKey: ['id'])
-          .eq('id', userId),
-      builder: (context, snapshot) {
-        final isDC = snapshot.hasData && snapshot.data!.isNotEmpty
-            ? snapshot.data!.first['is_dc'] == true
-            : false;
-        final isAdmin = snapshot.hasData && snapshot.data!.isNotEmpty
-            ? snapshot.data!.first['is_admin'] == true
-            : false;
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
+        return Stack(
           children: [
-            Text(
-              "@$userName",
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
+            CircleAvatar(
+              radius: 15,
+              backgroundColor: Colors.grey[200],
+              backgroundImage: imageUrl != null ? CachedNetworkImageProvider(imageUrl) : null,
+              child: imageUrl == null ? const Icon(Icons.person, color: Colors.grey, size: 15) : null,
             ),
-            if (isDC || isAdmin) ...[
-              const SizedBox(width: 4),
-              VerificationBadge(
-                isDC: isDC,
-                isAdmin: isAdmin,
-                size: 12,
+            if (isDC || isAdmin)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: VerificationBadge(isDC: isDC, isAdmin: isAdmin, size: 14),
               ),
-            ],
           ],
         );
       },

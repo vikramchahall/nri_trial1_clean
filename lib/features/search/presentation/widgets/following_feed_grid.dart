@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:nri_trial1_clean/utlis/media_url.dart';
 
 import '../../../crowdfunding/domain/entities/crowd_post.dart';
 import '../../../crowdfunding/presentation/pages/post_detail_page.dart';
 import 'package:nri_trial1_clean/components/my_media_grid_tile.dart';
 
-class FollowingFeedGrid extends StatelessWidget {
+class FollowingFeedGrid extends StatefulWidget {
   final List<String> followingList;
 
   const FollowingFeedGrid({
@@ -14,8 +15,35 @@ class FollowingFeedGrid extends StatelessWidget {
   });
 
   @override
+  State<FollowingFeedGrid> createState() => _FollowingFeedGridState();
+}
+
+class _FollowingFeedGridState extends State<FollowingFeedGrid> {
+  List<CrowdPost>? _posts;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.followingList.isNotEmpty) _load();
+  }
+
+  Future<void> _load() async {
+    final data = await Supabase.instance.client
+        .from('posts')
+        .select()
+        .inFilter('user_id', widget.followingList) // ✅ filter in DB not in dart
+        .order('timestamp', ascending: false);
+
+    if (mounted) {
+      setState(() {
+        _posts = (data as List).map((p) => CrowdPost.fromJson(p, p['id'].toString())).toList();
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (followingList.isEmpty) {
+    if (widget.followingList.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -31,57 +59,39 @@ class FollowingFeedGrid extends StatelessWidget {
       );
     }
 
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: Supabase.instance.client
-          .from('posts')
-          .stream(primaryKey: ['id'])
-          .order('timestamp'),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    if (_posts == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        final posts = snapshot.data!
-            .where((p) =>
-                followingList.contains(p['user_id'].toString()))
-            .toList()
-          ..sort((a, b) => DateTime.parse(b['timestamp'])
-              .compareTo(DateTime.parse(a['timestamp'])));
+    if (_posts!.isEmpty) {
+      return const Center(
+        child: Text("No posts from people you follow yet."),
+      );
+    }
 
-        if (posts.isEmpty) {
-          return const Center(
-            child: Text("No posts from people you follow yet."),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(2),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 2,
+          mainAxisSpacing: 2,
+        ),
+        itemCount: _posts!.length,
+        itemBuilder: (context, index) {
+          final post = _posts![index];
+          return GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => PostDetailPage(post: post)),
+            ),
+            child: MyMediaGridTile(
+              url: MediaUrl.convert(post.imageUrl), // ✅ Cloudflare
+            ),
           );
-        }
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(2),
-          gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 2,
-            mainAxisSpacing: 2,
-          ),
-          itemCount: posts.length,
-          itemBuilder: (context, index) {
-            final postData = posts[index];
-            final post = CrowdPost.fromJson(
-              postData,
-              postData['id'].toString(),
-            );
-
-            return GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PostDetailPage(post: post),
-                ),
-              ),
-              child: MyMediaGridTile(url: post.imageUrl),
-            );
-          },
-        );
-      },
+        },
+      ),
     );
   }
 }

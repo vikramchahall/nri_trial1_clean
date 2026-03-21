@@ -15,6 +15,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../cubits/profile_cubit.dart';
 
+import 'package:nri_trial1_clean/utlis/media_url.dart';
+
 class ProfilePageContent extends StatelessWidget {
   final ProfileUser user;
   const ProfilePageContent({super.key, required this.user});
@@ -58,7 +60,8 @@ class ProfilePageContent extends StatelessWidget {
 
               return ClipOval(
   child: CachedNetworkImage(
-    imageUrl: imageVersion > 0 ? "$imageUrl?v=$imageVersion" : imageUrl,
+    imageUrl: imageVersion > 0  ? "${MediaUrl.convert(imageUrl)}?v=$imageVersion" 
+  : MediaUrl.convert(imageUrl),
     height: 90,
     width: 90,
     fit: BoxFit.cover,
@@ -186,7 +189,7 @@ class ProfilePageContent extends StatelessWidget {
                         color: Colors.grey[100],
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: MyMediaGridTile(url: post.imageUrl),
+                      child: MyMediaGridTile(url: MediaUrl.convert(post.imageUrl)),
                     ),
                   );
                 },

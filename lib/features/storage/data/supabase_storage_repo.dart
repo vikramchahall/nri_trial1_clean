@@ -1,8 +1,8 @@
-import 'dart:typed_data';
+import 'dart:typed_data'; 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image/image.dart' as img;
-
+import 'package:nri_trial1_clean/utlis/media_url.dart';
 import '../domain/storage_repo.dart';
 
 class SupabaseStorageRepo implements StorageRepo {
@@ -66,10 +66,13 @@ class SupabaseStorageRepo implements StorageRepo {
             ),
           );
 
-      final publicUrl =
-          _supabase.storage.from(bucket).getPublicUrl(fileName);
+      // ✅ CHANGED PART (exactly as instructed)
+      final cfUrl = MediaUrl.convert(
+        _supabase.storage.from(bucket).getPublicUrl(fileName)
+      );
 
-      return "$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}";
+      return "$cfUrl?v=${DateTime.now().millisecondsSinceEpoch}";
+
     } catch (e) {
       debugPrint("❌ Supabase Upload Error: $e");
       return null;

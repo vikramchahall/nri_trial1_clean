@@ -10,6 +10,8 @@ import '../../domain/entities/crowd_post.dart';
 import '../cubits/crowd_cubit.dart';
 import '../../../auth/presentation/cubits/auth_cubit.dart';
 
+import 'package:nri_trial1_clean/utlis/media_url.dart';
+
 class CrowdPostHeader extends StatelessWidget {
   final CrowdPost post;
 
@@ -443,14 +445,13 @@ class _ProfileAvatarState extends State<_ProfileAvatar> {
         CircleAvatar(
           radius: 20,
           backgroundColor: Colors.grey[200],
-          backgroundImage: (url != null && url.isNotEmpty)
-              ? NetworkImage(
-                  version != null && version > 0 ? "$url?v=$version" : url,
-                )
-              : null,
-          child: (url == null || url.isEmpty)
-              ? const Icon(Icons.person, color: Colors.grey, size: 20)
-              : null,
+backgroundImage: (url != null && url.isNotEmpty)
+    ? NetworkImage(
+        version != null && version > 0
+            ? "${MediaUrl.convert(url)}?v=$version"
+            : MediaUrl.convert(url),
+      )
+    : null,
         ),
         if (_isDC || _isAdmin)
           Positioned(

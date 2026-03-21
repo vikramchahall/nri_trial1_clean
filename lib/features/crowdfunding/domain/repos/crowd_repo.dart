@@ -11,4 +11,5 @@ abstract class CrowdRepo {
   Future<List<CrowdPost>> fetchPostsByUserId(String uid);
   Future<List<Map<String, dynamic>>> fetchOfficialUpdates();
   Future<void> postOfficialUpdate(String title, String message, String mediaUrl, String type);
+  Future<int> getCommentCount(String postId); // ✅ NEW
 }

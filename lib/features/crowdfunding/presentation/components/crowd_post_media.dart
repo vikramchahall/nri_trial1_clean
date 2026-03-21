@@ -7,6 +7,10 @@ import '../../../auth/presentation/cubits/auth_cubit.dart';
 import '../../../../components/my_video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+
+import 'package:nri_trial1_clean/utlis/media_url.dart';
+
+
 class CrowdPostMedia extends StatefulWidget {
   final CrowdPost post;
 
@@ -75,7 +79,7 @@ class _CrowdPostMediaState extends State<CrowdPostMedia>
 
   @override
   Widget build(BuildContext context) {
-    final mediaUrl = widget.post.imageUrl;
+    final mediaUrl = MediaUrl.convert(widget.post.imageUrl);
     final isVideo =
         mediaUrl.toLowerCase().contains('.mp4') ||
         mediaUrl.toLowerCase().contains('.mov');

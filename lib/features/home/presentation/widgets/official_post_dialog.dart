@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:nri_trial1_clean/utlis/media_url.dart';
+
 
 /// ================= ENTRY POINT =================
 void showOfficialPostDialog(BuildContext context) {
@@ -220,8 +222,9 @@ Future<void> _submitAnnouncement(
             );
       }
 
-      mediaUrl =
-          supabase.storage.from('official_media').getPublicUrl(storagePath);
+mediaUrl = MediaUrl.convert(
+  supabase.storage.from('official_media').getPublicUrl(storagePath)
+);
     }
 
     final insertData = {
@@ -456,8 +459,9 @@ Future<void> _submitAchievement(
             );
       }
 
-      imageUrl =
-          supabase.storage.from('official_media').getPublicUrl(storagePath);
+imageUrl = MediaUrl.convert(
+  supabase.storage.from('official_media').getPublicUrl(storagePath)
+);
     }
 
     final insertData = {
