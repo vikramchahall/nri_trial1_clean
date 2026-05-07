@@ -1,16 +1,35 @@
-# nri_trial1_clean
+# ConnectNRI
 
-A new Flutter project.
+ConnectNRI is a Flutter-based social networking platform focused on connecting NRIs and the global Indian community through digital networking, content sharing, and community engagement.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- User authentication and profiles
+- Social feed and post interaction
+- User discovery and networking
+- Real-time backend integration
+- Cross-platform mobile support
 
-A few resources to get you started if this is your first Flutter project:
+## Tech Stack
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- Flutter
+- Dart
+- Supabase
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Future Scope
+
+Planned future integrations include:
+
+- Donation and fundraising support for verified social and community causes
+- Community groups and messaging
+- Professional networking features
+- AI-based recommendations
+
+
+## Setup
+
+```bash
+git clone https://github.com/your-username/connectnri.git
+cd connectnri
+flutter pub get
+flutter run
